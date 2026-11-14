@@ -152,6 +152,17 @@ async function teacherAction(action,data,u,db){
   const rows=Object.entries(attempts).flatMap(([uid,at])=>Object.entries(at).filter(([k,v])=>k!=='name'&&v&&v.submittedAt).map(([key,a])=>({uid,attempt:key,...a,questions:assignment.variants[a.variant]?.questions||[]})));
   return json({title:assignment.title,config:assignment.config,codes:assignment.codes,rows});
  }
+ if(action==='audioLink'){
+  const id=clip(data.id,100),uid=clip(data.uid,130),attempt=clip(data.attempt,110),index=Number(data.index);
+  if(!(await root.child('assignments/'+id).once('value')).exists())return fail('Không tìm thấy bài.',404);
+  const rec=(await db.ref('wm2/attempts/'+id+'/'+uid+'/'+attempt).once('value')).val();
+  const path=rec?.audioUploads?.[index];
+  if(!path||!path.startsWith('wm2-audio/'+id+'/'+uid+'/'+attempt+'/'))return fail('Không có bản ghi âm.',404);
+  const {getStorage}=await import('firebase-admin/storage');
+  const bucket=getStorage().bucket(process.env.FIREBASE_STORAGE_BUCKET||'english-millionaire.firebasestorage.app');
+  const [url]=await bucket.file(path).getSignedUrl({action:'read',expires:Date.now()+5*60*1000});
+  return json({url});
+ }
  if(action==='review'){
   const id=clip(data.id,100),uid=clip(data.uid,130),attempt=clip(data.attempt,110);
   const assignment=(await root.child('assignments/'+id).once('value')).val();
@@ -249,7 +260,7 @@ export default async function handler(req){
   const len=Number(req.headers.get('content-length')||0);if(len>1050000)return fail('Dữ liệu quá lớn.',413);
   const {action,...data}=await req.json();
   const {auth,db}=admin();const u=await userOf(req,auth);
-  if(['state','book','bank','generate','publish','report','review'].includes(action))return teacherAction(action,data,u,db);
+  if(['state','book','bank','generate','publish','report','review','audioLink'].includes(action))return teacherAction(action,data,u,db);
   if(['open','submit','uploadAudio'].includes(action))return studentAction(action,data,u,db);
   return fail('Tác vụ không hợp lệ.');
  }catch(e){console.error('WordMillion function:',e.message);return fail(e.message||'Lỗi máy chủ.',500)}
