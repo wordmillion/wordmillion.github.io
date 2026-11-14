@@ -52,15 +52,15 @@ function versions(pool,count,num){
  });
 }
 function makeCode(grade){
- const d=new Date();const yy=d.getUTCFullYear(),dd=String(d.getUTCDate()).padStart(2,'0'),mm=String(d.getUTCMonth()+1).padStart(2,'0'),g=String(grade).padStart(2,'0');
+ const d=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(x=>[x.type,x.value]));const yy=d.year,dd=d.day,mm=d.month,g=String(grade).padStart(2,'0');
  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ';
  return ''+yy+dd+mm+g+Array.from(randomBytes(4),n=>chars[n%chars.length]).join('');
 }
-function norm(v){return String(v??'').normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/\\s+/g,' ')}
+function norm(v){return String(v??'').normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/\s+/g,' ')}
 function matchText(answer,accepted){
  const x=norm(answer);return (accepted||[]).some(s=>{
   const val=String(s);
-  if(val.startsWith('re:')){try{const rx=val.slice(3);if(rx.length>160||/\\(\\?/.test(rx))return false;return new RegExp('^(?:'+rx+')$','iu').test(String(answer).trim().slice(0,2000))}catch{return false}}
+  if(val.startsWith('re:')){try{const rx=val.slice(3);if(rx.length>160||/[(){}]/.test(rx))return false;return new RegExp('^(?:'+rx+')$','iu').test(String(answer).trim().slice(0,2000))}catch{return false}}
   return norm(val)===x;
  });
 }
@@ -156,7 +156,7 @@ async function teacherAction(action,data,u,db){
 }
 async function studentAction(action,data,u,db){
  const code=clip(data.code,32).toUpperCase().trim();
- if(!/^\\d{10}[A-Z]{4}$/.test(code))return fail('Mã bài tập không đúng cấu trúc.');
+ if(!/^\d{10}[A-Z]{4}$/.test(code))return fail('Mã bài tập không đúng cấu trúc.');
  const mapped=(await db.ref('wm2/codes/'+code).once('value')).val();
  if(!mapped)return fail('Không tìm thấy mã bài tập.',404);
  const a=(await db.ref('wm2/teachers/'+mapped.owner+'/assignments/'+mapped.assignment).once('value')).val();
