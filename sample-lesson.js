@@ -84,7 +84,7 @@ export const sampleLesson = {
         "was losing"
       ],
       "correct": 2,
-      "explanation": "Yesterday chỉ thời điểm quá khứ hoàn thành; dùng lost (past simple).",
+      "explanation": "Yesterday chỉ thời điểm quá khứ đã kết thúc; dùng lost (past simple), không dùng past perfect.",
       "word": "lost",
       "ipa": "/lɔːst/",
       "vi": "đã đánh mất",
