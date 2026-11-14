@@ -1,6 +1,8 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
 import { getAuth,signInAnonymously,signInWithEmailAndPassword,signOut,onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
+import { demoAction } from './demo-data.js';
+const isPreview=location.hostname.endsWith('github.io')||location.hostname==='localhost';
 const $=s=>document.querySelector(s),root=$('#content'),alertBox=$('#alert');
 const fb=initializeApp(firebaseConfig),auth=getAuth(fb);
 const TEMPLATES=[
@@ -13,7 +15,7 @@ const TEMPLATES=[
 {id:'audio',label:'Audio Recorder',desc:'Đọc to · Trả lời nói · Giáo viên nghe và chấm'}
 ];
 const S={view:'dashboard',user:null,teacher:false,books:[],bank:[],assignments:[],preview:null,published:null,
-config:{grade:4,className:'',group:'',topic:'',count:30,variants:10,students:10,attempts:2,minutes:45,pass:60,good:85,types:['select','cloze','ordering','short'],useAI:true,bookIds:[]},
+config:{grade:4,className:'',group:'',topic:'',count:30,variants:10,students:10,attempts:2,minutes:45,pass:60,good:85,types:['select','cloze','ordering','short'],useAI:false,bookIds:[]},
 student:null,studentAnswers:[],recording:null,mediaRecorder:null,recordingChunks:[],timer:null,remaining:0,sourceUsed:null,editQuestion:null,activeReport:null};
 const E=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const field=(label,input)=>'<div class="field"><label>'+label+'</label>'+input+'</div>';
@@ -23,8 +25,9 @@ const T=id=>TEMPLATES.find(x=>x.id===id)?.label||id;
 const date=ms=>new Date(ms).toLocaleString('vi-VN',{timeZone:'Asia/Taipei'});
 function show(msg,ok=false){alertBox.className='alert'+(ok?' ok':'');alertBox.textContent=msg;window.scrollTo({top:0,behavior:'smooth'});}
 function clear(){alertBox.className='alert hidden';alertBox.textContent='';}
-function keepTeacher(){if(!S.teacher){show('Đây là bản xem trước giao diện. Để lưu giáo trình hoặc giao bài thật, cần đăng nhập giáo viên trên bản Netlify.');}return true}
+function keepTeacher(){if(!S.teacher){root.innerHTML=login();return false}return true}
 async function api(action,rest={}){
+ if(isPreview)return demoAction(action,rest);
  const u=auth.currentUser;if(!u)throw Error('Bạn cần đăng nhập trước khi tiếp tục.');
  const token=await u.getIdToken();
  const resp=await fetch('/.netlify/functions/homework-api',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({action,...rest})});
@@ -32,7 +35,7 @@ async function api(action,rest={}){
  if(!resp.ok)throw Error(data.error||'Không thể thực hiện yêu cầu.');return data;
 }
 function login(){
- return '<div class="panel" style="max-width:710px;margin:30px auto"><span class="eyebrow">TEACHER ACCOUNT</span><h2>Đăng nhập giáo viên</h2><p class="muted">Sử dụng tài khoản Email/Password đã tạo trong Firebase Authentication.</p><form id="teacher-login" class="stack">'+field('Email',input('email','','email','required autocomplete="username"'))+field('Mật khẩu',input('password','','password','required autocomplete="current-password"'))+'<button type="submit" class="primary">Đăng nhập →</button></form></div>';
+ return '<div class="panel" style="max-width:710px;margin:30px auto"><span class="eyebrow">TEACHER ACCOUNT</span><h2>Đăng nhập giáo viên</h2><p class="muted">Sử dụng tài khoản Email/Password đã tạo trong Firebase Authentication.</p><form id="teacher-login" class="stack">'+field('Email',input('email','','email','required autocomplete="username"'))+field('Mật khẩu',input('password','','password','required autocomplete="current-password"'))+'<button type="submit" class="primary">Đăng nhập →</button></form>'+(isPreview?'<div class="divider"></div><p class="hint">Bạn đang xem bản demo chạy trong trình duyệt. Chức năng AI, đồng bộ giữa các thiết bị và chấm nói chưa hoạt động ở GitHub Pages.</p><button class="secondary" id="demo-teacher">Dùng thử giáo viên không cần đăng nhập</button>':'')+'</div>';
 }
 function dashboard(){
  root.innerHTML='<section class="hero"><div><span class="eyebrow">AI HOMEWORK STUDIO</span><h1>Less paperwork.<br><em>More learning.</em></h1><p>Biến giáo trình và ngân hàng câu hỏi thành bài tập phù hợp từng lớp. Tạo nhiều mã đề, hạn chế số lần làm, kiểm tra kết quả theo ngưỡng giáo viên đặt.</p><div class="actions"><button class="primary" data-view="builder">Giao bài tập →</button><button class="secondary" data-view="library">Quản lý giáo trình</button></div></div><div class="hero-art"><div class="ring"><div class="center-star">✦</div></div></div></section><section class="grid3" style="margin-top:20px"><div class="panel"><div class="metric">7</div><h3>Khuôn mẫu câu hỏi</h3><p class="muted">Kết hợp thành nhiều dạng bài tiếng Anh.</p></div><div class="panel"><div class="metric">'+S.books.length+'</div><h3>Giáo trình</h3><p class="muted">Tổ chức theo khối, lớp và bộ sách.</p></div><div class="panel"><div class="metric">'+S.assignments.length+'</div><h3>Bài tập đã giao</h3><p class="muted">Mã đề và kết quả được quản lý riêng.</p></div></section>';
@@ -158,6 +161,7 @@ async function parseFile(file){
  throw Error('Định dạng không được hỗ trợ.');
 }
 async function studentAuth(){
+ if(isPreview)return;
  if(auth.currentUser&&!S.teacher)return;
  if(S.teacher)await signOut(auth);
  await signInAnonymously(auth);
@@ -178,7 +182,8 @@ function bind(){
   const btn=e.target.closest('button');if(!btn)return;
   try{
    if(btn.dataset.view){navigate(btn.dataset.view);return}
-   if(btn.id==='logout'){await signOut(auth);S.teacher=false;S.user=null;S.books=[];S.bank=[];S.assignments=[];navigate('dashboard');return}
+   if(btn.id==='demo-teacher'){S.teacher=true;S.user={email:'teacher@demo.local'};S.view='dashboard';await refresh();show('Đang dùng bản thử trong trình duyệt này. Chưa có đồng bộ đám mây hoặc AI.',true);return}
+   if(btn.id==='logout'){if(!isPreview)await signOut(auth);S.teacher=false;S.user=null;S.books=[];S.bank=[];S.assignments=[];navigate('dashboard');return}
    if(btn.id==='add-manual'){S.editQuestion=null;document.body.insertAdjacentHTML('beforeend',editor());$('#type-fields').innerHTML=typeFields('select');return}
    if(btn.id==='close-editor'){document.querySelector('.overlay')?.remove();return}
    if(btn.id==='discard-preview'){S.preview=null;builder();return}
@@ -230,7 +235,7 @@ function bind(){
   e.preventDefault();const form=e.target,button=form.querySelector('[type="submit"]');if(button)button.disabled=true;
   try{
    if(form.id==='teacher-login'){
-    const d=new FormData(form);await signInWithEmailAndPassword(auth,String(d.get('email')),String(d.get('password')));
+    const d=new FormData(form);if(isPreview)throw Error('Đây là bản demo. Nhấn Dùng thử giáo viên để vào ứng dụng, không cần email.');await signInWithEmailAndPassword(auth,String(d.get('email')),String(d.get('password')));
     S.teacher=true;S.user=auth.currentUser;S.view='dashboard';await refresh();show('Đã đăng nhập giáo viên.',true);
    }
    if(form.id==='book-form'){
@@ -278,7 +283,8 @@ function bind(){
  fileObserve.observe(document.body,{childList:true,subtree:true});
 }
 onAuthStateChanged(auth,u=>{
- S.user=u;S.teacher=!!u&&!u.isAnonymous;$('#account').innerHTML=S.teacher?'<span>'+E(u.email||'Giáo viên')+'</span> <button class="ghost" id="logout">Đăng xuất</button>':'<button class="secondary btn-sm" data-view="login">Đăng nhập giáo viên</button>';
+ S.user=u;if(!isPreview)S.teacher=!!u&&!u.isAnonymous;$('#account').innerHTML=S.teacher?'<span>'+E(u.email||'Giáo viên')+'</span> <button class="ghost" id="logout">Đăng xuất</button>':'<button class="secondary btn-sm" data-view="login">Đăng nhập giáo viên</button>';
 });
 bind();
+if(isPreview){const banner=document.createElement('div');banner.className='alert ok';banner.textContent='BẢN DEMO · Dữ liệu chỉ lưu trong trình duyệt này. Chưa có AI thật hoặc giao bài đồng bộ cho học sinh khác.';document.querySelector('.shell').insertBefore(banner,document.querySelector('main'));}
 navigate(new URLSearchParams(location.search).get('code')?'student':'dashboard');
