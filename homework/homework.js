@@ -44,7 +44,7 @@ function library(){
 function editor(q){
  const val=(x)=>E(q?.[x]??'');
  const type=q?.type||'select';
- return '<div class="overlay"><div class="panel modal"><div class="row between"><h2>Soạn câu hỏi</h2><button class="ghost" id="close-editor">Đóng ✕</button></div><form id="manual-form" class="stack">'+field('Khuôn mẫu','<select name="type" id="manual-type">'+opts(TEMPLATES.map(x=>[x.id,x.label]),type)+'</select>')+field('Câu hỏi / Yêu cầu','<textarea name="prompt" required>'+val('prompt')+'</textarea>')+field('Context Block – Đoạn đọc / mô tả','<textarea name="context">'+val('context')+'</textarea>')+field('Loại ngữ liệu','<select name="contextKind">'+opts([['text','Văn bản'],['image','Hình ảnh URL'],['audio','Âm thanh URL'],['video','Video URL']],q?.contextKind||'text')+'</select>')+field('Link hình ảnh / audio / video',input('contextURL',q?.contextURL||''))+'<div id="type-fields"></div>'+field('Giải thích cho giáo viên / học sinh','<textarea name="explanation">'+val('explanation')+'</textarea>')+'<button class="primary" type="submit">Lưu vào ngân hàng</button></form></div></div>';
+ return '<div class="overlay"><div class="panel modal"><div class="row between"><h2>Soạn câu hỏi</h2><button class="ghost" id="close-editor">Đóng ✕</button></div><form id="manual-form" class="stack">'+field('Khuôn mẫu','<select name="type" id="manual-type">'+opts(TEMPLATES.map(x=>[x.id,x.label]),type)+'</select>')+field('Câu hỏi / Yêu cầu','<textarea name="prompt" required>'+val('prompt')+'</textarea>')+field('Context Block – Đoạn đọc / mô tả','<textarea name="context">'+val('context')+'</textarea>')+field('Nhóm ngữ liệu chung (tùy chọn)',input('contextGroup',q?.contextGroup||'','text','placeholder="Ví dụ: READING-01"'))+field('Loại ngữ liệu','<select name="contextKind">'+opts([['text','Văn bản'],['image','Hình ảnh URL'],['audio','Âm thanh URL'],['video','Video URL']],q?.contextKind||'text')+'</select>')+field('Link hình ảnh / audio / video',input('contextURL',q?.contextURL||''))+'<div id="type-fields"></div>'+field('Giải thích cho giáo viên / học sinh','<textarea name="explanation">'+val('explanation')+'</textarea>')+'<button class="primary" type="submit">Lưu vào ngân hàng</button></form></div></div>';
 }
 function typeFields(type){
  const current=S.editQuestion||{};
@@ -96,7 +96,7 @@ function media(q){
  if(q.contextKind==='video')return ctx+'<video controls src="'+E(url)+'" style="max-width:100%"></video>';
  return ctx;
 }
-function questionUI(q,i){
+function questionUI(q,i,showContext=true){
  const ans=S.studentAnswers[i];
  let body='';
  if(q.type==='select')body='<div class="answers">'+(q.options||[]).map((o,j)=>'<label class="radio"><input type="checkbox" data-answer="'+i+'" data-option="'+j+'" '+(Array.isArray(ans)&&ans.includes(j)?'checked':'')+'> '+String.fromCharCode(65+j)+'. '+E(o)+'</label>').join('')+'</div>';
@@ -106,13 +106,13 @@ function questionUI(q,i){
   const cur=Array.isArray(ans)?ans:[...(q.items||[])].reverse();
   body='<div class="stack">'+cur.map((v,j)=>'<div class="chip" style="display:flex;justify-content:space-between">'+E(v)+'<span><button type="button" class="ghost btn-sm" data-move="'+i+'" data-index="'+j+'" data-dir="-1">↑</button><button type="button" class="ghost btn-sm" data-move="'+i+'" data-index="'+j+'" data-dir="1">↓</button></span></div>').join('')+'</div>';
  }
- if(q.type==='matching')body='<div class="stack">'+(q.matches||[]).map((pair,j)=>'<div class="row"><strong style="min-width:130px">'+E(pair.left)+'</strong><select data-match="'+i+'" data-match-index="'+j+'"><option value="">Chọn đáp án</option>'+opts((q.matchOptions||[]).map(x=>[x,x]),ans?.[j])+'</select></div>').join('')+'</div>';
+ if(q.type==='matching')body='<div class="chips" style="margin-bottom:10px">'+(q.matchOptions||[]).map(x=>'<div draggable="true" class="chip" data-drag-answer="'+E(x)+'">'+E(x)+'</div>').join('')+'</div><div class="stack">'+(q.matches||[]).map((pair,j)=>'<div class="row"><strong style="min-width:130px">'+E(pair.left)+'</strong><select data-match="'+i+'" data-match-index="'+j+'"><option value="">Chọn đáp án</option>'+opts((q.matchOptions||[]).map(x=>[x,x]),ans?.[j])+'</select></div>').join('')+'</div>';
  if(q.type==='audio')body='<div class="stack"><div class="row"><button type="button" class="secondary btn-sm" data-record="'+i+'">Bắt đầu ghi âm</button><button type="button" class="secondary btn-sm" id="stop-record" disabled>Dừng ghi</button></div><p class="small muted" id="record-status-'+i+'">'+(ans?'Đã ghi âm.':'Chưa ghi âm. Trình duyệt sẽ xin quyền micro.')+'</p><audio id="record-play-'+i+'" controls style="max-width:100%" '+(ans?'src="'+E(ans)+'"':'hidden')+'></audio></div>';
- return '<section class="question">'+media(q)+'<div class="row between"><span class="badge">Câu '+(i+1)+' · '+E(T(q.type))+'</span><span class="pill">'+E(q.points||1)+' điểm</span></div><h3>'+E(q.prompt)+'</h3>'+body+'</section>';
+ return '<section class="question">'+(showContext?media(q):'')+'<div class="row between"><span class="badge">Câu '+(i+1)+' · '+E(T(q.type))+'</span><span class="pill">'+E(q.points||1)+' điểm</span></div><h3>'+E(q.prompt)+'</h3>'+body+'</section>';
 }
 function task(){
  const t=S.student;if(!t)return student();
- root.innerHTML='<section class="panel"><div class="row between"><div><span class="eyebrow">HOMEWORK IN PROGRESS</span><h2>'+E(t.assignment)+'</h2><span class="pill">Mã đề '+E(t.code)+'</span></div><div><div class="metric" id="remaining"></div><div class="small muted">thời gian còn lại</div></div></div><div class="progress"><div id="progressbar" style="width:0%"></div></div><p class="notice">Bài tập được chấm sau khi nộp. Bài luận và câu nói cần giáo viên đánh giá.</p></section><form id="student-submit">'+t.questions.map(questionUI).join('')+'<div class="panel"><button class="primary" type="submit">Nộp bài tập →</button></div></form>';
+ root.innerHTML='<section class="panel"><div class="row between"><div><span class="eyebrow">HOMEWORK IN PROGRESS</span><h2>'+E(t.assignment)+'</h2><span class="pill">Mã đề '+E(t.code)+'</span></div><div><div class="metric" id="remaining"></div><div class="small muted">thời gian còn lại</div></div></div><div class="progress"><div id="progressbar" style="width:0%"></div></div><p class="notice">Bài tập được chấm sau khi nộp. Bài luận và câu nói cần giáo viên đánh giá.</p></section><form id="student-submit">'+t.questions.map((q,i)=>questionUI(q,i,!q.contextGroup||i===0||t.questions[i-1].contextGroup!==q.contextGroup)).join('')+'<div class="panel"><button class="primary" type="submit">Nộp bài tập →</button></div></form>';
  clock();
 }
 function clock(){
@@ -135,7 +135,7 @@ function captureConfig(f){
 }
 function parseManual(form){
  const d=new FormData(form),type=d.get('type');
- const q={type,prompt:String(d.get('prompt')||'').trim(),context:String(d.get('context')||''),contextKind:d.get('contextKind'),contextURL:String(d.get('contextURL')||''),explanation:String(d.get('explanation')||''),points:1};
+ const q={type,prompt:String(d.get('prompt')||'').trim(),context:String(d.get('context')||''),contextKind:d.get('contextKind'),contextGroup:String(d.get('contextGroup')||'').trim(),contextURL:String(d.get('contextURL')||''),explanation:String(d.get('explanation')||''),points:1};
  const lines=($('#manual-values')?.value||'').split(/\r?\n/).map(v=>v.trim()).filter(Boolean);
  if(type==='select'){q.options=lines;q.correct=String(d.get('correct')||'0').split(',').map(Number).filter(n=>Number.isInteger(n)&&n>=0&&n<q.options.length);}
  if(['cloze','short'].includes(type))q.accepted=lines;
@@ -223,6 +223,7 @@ function bind(){
   if(i!==undefined&&e.target.dataset.option!==undefined){const n=Number(i),j=Number(e.target.dataset.option),v=Array.isArray(S.studentAnswers[n])?S.studentAnswers[n]:[];S.studentAnswers[n]=e.target.checked?[...new Set([...v,j])]:v.filter(x=>x!==j);}
   if(e.target.dataset.match!==undefined){const n=Number(e.target.dataset.match),j=Number(e.target.dataset.matchIndex),v=S.studentAnswers[n]||[];v[j]=e.target.value;S.studentAnswers[n]=v;}
  });
+ document.addEventListener('dragstart',e=>{const t=e.target.closest('[data-drag-answer]');if(t)e.dataTransfer.setData('text/plain',t.dataset.dragAnswer)});document.addEventListener('dragover',e=>{if(e.target.closest('[data-match]'))e.preventDefault()});document.addEventListener('drop',e=>{const t=e.target.closest('[data-match]');if(!t)return;e.preventDefault();const x=e.dataTransfer.getData('text/plain');if(!x)return;t.value=x;t.dispatchEvent(new Event('change',{bubbles:true}))});
  document.addEventListener('input',e=>{if(e.target.dataset.answer!==undefined&&e.target.dataset.option===undefined)S.studentAnswers[Number(e.target.dataset.answer)]=e.target.value});
  document.addEventListener('submit',async e=>{
   if(!['teacher-login','book-form','manual-form','build-form','student-open','student-submit','review-form'].includes(e.target.id))return;
