@@ -134,10 +134,10 @@ async function teacherAction(action,data,u,db){
   const variants=(data.variants||[]).slice(0,100);
   if(!variants.length||variants.length!==config.variants||variants.some(v=>!Array.isArray(v.questions)||v.questions.length!==config.count||v.questions.some(q=>!validateQuestion(q))))return fail('Số lượng đề, câu hỏi hoặc đáp án không hợp lệ.');
   const id=root.child('assignments').push().key;
-  const codes=[];const patch={};
+  const codes=[];const patch={};const batchCodes=new Set();
   for(let i=0;i<variants.length;i++){
    let code=makeCode(config.grade),n=0;
-   while((await db.ref('wm2/codes/'+code).once('value')).exists()&&n++<5)code=makeCode(config.grade);
+   while((batchCodes.has(code)||(await db.ref('wm2/codes/'+code).once('value')).exists())&&n++<15)code=makeCode(config.grade);if(batchCodes.has(code))throw Error('Không thể tạo mã đề duy nhất.');batchCodes.add(code);
    codes.push(code);patch['wm2/codes/'+code]={owner:u.uid,assignment:id,variant:i};
   }
   const assignment={title:clip(data.title,120)||'Bài tập tiếng Anh',config,codes,variants,createdAt:Date.now(),status:'published'};
@@ -149,8 +149,28 @@ async function teacherAction(action,data,u,db){
   const id=clip(data.id,100);const assignment=(await root.child('assignments/'+id).once('value')).val();
   if(!assignment)return fail('Không tìm thấy bài tập.',404);
   const attempts=(await db.ref('wm2/attempts/'+id).once('value')).val()||{};
-  const rows=Object.entries(attempts).flatMap(([uid,at])=>Object.entries(at).filter(([k])=>k!=='name').map(([key,a])=>({uid,attempt:key,...a})));
+  const rows=Object.entries(attempts).flatMap(([uid,at])=>Object.entries(at).filter(([k,v])=>k!=='name'&&v&&v.submittedAt).map(([key,a])=>({uid,attempt:key,...a,questions:assignment.variants[a.variant]?.questions||[]})));
   return json({title:assignment.title,config:assignment.config,codes:assignment.codes,rows});
+ }
+ if(action==='review'){
+  const id=clip(data.id,100),uid=clip(data.uid,130),attempt=clip(data.attempt,110);
+  const assignment=(await root.child('assignments/'+id).once('value')).val();
+  if(!assignment)return fail('Không tìm thấy bài tập.',404);
+  const target=db.ref('wm2/attempts/'+id+'/'+uid+'/'+attempt);
+  const r=(await target.once('value')).val();
+  if(!r||!r.submittedAt)return fail('Không tìm thấy bài đã nộp.',404);
+  const questions=assignment.variants[r.variant]?.questions||[];
+  let earned=r.autoEarned||0;const manual={};
+  for(let i=0;i<questions.length;i++){
+   if(!['essay','audio'].includes(questions[i].type))continue;
+   const x=Number(data.manual?.[i]);
+   if(!Number.isFinite(x)||x<0||x>100)return fail('Chấm mọi bài viết/bài nói từ 0–100.');
+   manual[i]=x;earned+=(Number(questions[i].points)||1)*x/100;
+  }
+  const total=Number(r.total)||1,percent=Math.round(earned/total*1000)/10;
+  const status=percent>=assignment.config.good?'Tốt':percent>=assignment.config.pass?'Đạt':'Không đạt';
+  await target.update({manualScores:manual,percent,status,pending:false,reviewedAt:Date.now(),reviewedBy:u.uid});
+  return json({percent,status});
  }
  return fail('Tác vụ giáo viên không tồn tại.');
 }
@@ -179,6 +199,25 @@ async function studentAction(action,data,u,db){
   const remaining=Math.max(0,a.config.minutes*60-Math.floor((Date.now()-rec.startedAt)/1000));
   return json({assignment:a.title,config:{minutes:a.config.minutes,attempts:a.config.attempts,pass:a.config.pass,good:a.config.good},questions:variant.questions.map(safeQuestion),attempt:key,remaining,code});
  }
+ if(action==='uploadAudio'){
+  const attempt=clip(data.attempt,100),index=Number(data.index);
+  const ref=db.ref('wm2/attempts/'+mapped.assignment+'/'+u.uid+'/'+attempt);
+  const rec=(await ref.once('value')).val();
+  if(!rec||rec.code!==code||rec.submittedAt)return fail('Lượt làm bài không hợp lệ.',403);
+  if(!Number.isInteger(index)||variant.questions[index]?.type!=='audio')return fail('Không phải câu hỏi nói.');
+  if(Date.now()-rec.startedAt>a.config.minutes*60000+5000)return fail('Đã quá giờ.');
+  const value=String(data.dataUrl||''),m=/^data:(audio\/(?:webm|ogg|mp4|mpeg));base64,([A-Za-z0-9+/=]+)$/.exec(value);
+  if(!m||value.length>1900000)return fail('Bản ghi không hợp lệ hoặc vượt giới hạn 1,4 MB.');
+  const buffer=Buffer.from(m[2],'base64');
+  if(buffer.length>1400000)return fail('Bản ghi vượt giới hạn 1,4 MB.');
+  const bucketName=process.env.FIREBASE_STORAGE_BUCKET||'english-millionaire.firebasestorage.app';
+  const {getStorage}=await import('firebase-admin/storage');
+  const bucket=getStorage().bucket(bucketName);
+  const path='wm2-audio/'+mapped.assignment+'/'+u.uid+'/'+attempt+'/'+index;
+  await bucket.file(path).save(buffer,{contentType:m[1],resumable:false,metadata:{cacheControl:'private,no-store'}});
+  await ref.child('audioUploads/'+index).set(path);
+  return json({audioPath:path});
+ }
  if(action==='submit'){
   const attempt=clip(data.attempt,100);
   const ref=db.ref('wm2/attempts/'+mapped.assignment+'/'+u.uid+'/'+attempt);
@@ -187,6 +226,12 @@ async function studentAction(action,data,u,db){
   if(record.submittedAt)return fail('Bài này đã được nộp.',409);
   if(Date.now()-record.startedAt>a.config.minutes*60000+5000)return fail('Đã quá thời hạn nộp bài.');
   const answers=Array.isArray(data.answers)?data.answers:[];
+  for(let i=0;i<variant.questions.length;i++){
+   if(variant.questions[i].type==='audio'){
+    const stored=record.audioUploads?.[i];
+    if(!stored||answers[i]?.audioPath!==stored)return fail('Cần ghi âm và tải lên trước khi nộp câu nói '+(i+1)+'.');
+   }
+  }
   const rows=variant.questions.map((q,i)=>({answer:answers[i]??null,correct:scoreQuestion(q,answers[i]),points:Number(q.points)||1}));
   const total=rows.reduce((n,r)=>n+r.points,0),autoEarned=rows.reduce((n,r)=>n+(r.correct===1?r.points:0),0),pending=rows.some(r=>r.correct===null);
   const percent=total?Math.round(autoEarned/total*1000)/10:0;
@@ -204,8 +249,8 @@ export default async function handler(req){
   const len=Number(req.headers.get('content-length')||0);if(len>1050000)return fail('Dữ liệu quá lớn.',413);
   const {action,...data}=await req.json();
   const {auth,db}=admin();const u=await userOf(req,auth);
-  if(['state','book','bank','generate','publish','report'].includes(action))return teacherAction(action,data,u,db);
-  if(['open','submit'].includes(action))return studentAction(action,data,u,db);
+  if(['state','book','bank','generate','publish','report','review'].includes(action))return teacherAction(action,data,u,db);
+  if(['open','submit','uploadAudio'].includes(action))return studentAction(action,data,u,db);
   return fail('Tác vụ không hợp lệ.');
  }catch(e){console.error('WordMillion function:',e.message);return fail(e.message||'Lỗi máy chủ.',500)}
 }
