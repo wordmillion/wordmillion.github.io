@@ -23,7 +23,7 @@ const T=id=>TEMPLATES.find(x=>x.id===id)?.label||id;
 const date=ms=>new Date(ms).toLocaleString('vi-VN',{timeZone:'Asia/Taipei'});
 function show(msg,ok=false){alertBox.className='alert'+(ok?' ok':'');alertBox.textContent=msg;window.scrollTo({top:0,behavior:'smooth'});}
 function clear(){alertBox.className='alert hidden';alertBox.textContent='';}
-function keepTeacher(){if(!S.teacher){root.innerHTML=login();return false}return true}
+function keepTeacher(){if(!S.teacher){show('Đây là bản xem trước giao diện. Để lưu giáo trình hoặc giao bài thật, cần đăng nhập giáo viên trên bản Netlify.');}return true}
 async function api(action,rest={}){
  const u=auth.currentUser;if(!u)throw Error('Bạn cần đăng nhập trước khi tiếp tục.');
  const token=await u.getIdToken();
@@ -82,7 +82,7 @@ function reports(){
 function reportDetails(d){
  const list=$('#report-details');if(!list)return;
  const rows=d.rows||[];
- list.innerHTML='<section class="panel"><h2>'+E(d.title)+' – Chi tiết nộp bài</h2><div class="row"><span class="pill">Tổng lượt: '+rows.length+'</span><span class="pill">Đạt trở lên: '+rows.filter(x=>!x.pending&&x.percent>=d.config.pass).length+'</span><span class="pill">Cần chấm tay: '+rows.filter(x=>x.pending).length+'</span></div><div class="divider"></div><table><thead><tr><th>Học sinh</th><th>Mã đề</th><th>Điểm tự động</th><th>Đánh giá</th><th>Nộp lúc</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+E(r.name)+'</td><td class="code">'+E(r.code)+'</td><td>'+E(r.percent)+' / 100</td><td>'+E(r.status)+'</td><td>'+date(r.submittedAt)+'</td></tr>').join('')+'</tbody></table></section>';
+ list.innerHTML='<section class="panel"><h2>'+E(d.title)+' – Chi tiết nộp bài</h2><div class="row"><span class="pill">Tổng lượt: '+rows.length+'</span><span class="pill">Đạt trở lên: '+rows.filter(x=>!x.pending&&x.percent>=d.config.pass).length+'</span><span class="pill">Cần chấm tay: '+rows.filter(x=>x.pending).length+'</span></div><div class="divider"></div><table><thead><tr><th>Học sinh</th><th>Mã đề</th><th>Điểm tự động</th><th>Đánh giá</th><th>Nộp lúc</th><th>Chấm</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+E(r.name)+'</td><td class="code">'+E(r.code)+'</td><td>'+E(r.percent)+' / 100</td><td>'+E(r.status)+'</td><td>'+date(r.submittedAt)+'</td><td>'+(r.pending?'<button class="secondary btn-sm" data-review="'+rows.indexOf(r)+'">Chấm bài</button>':'<span class="success">Đã hoàn tất</span>')+'</td></tr>').join('')+'</tbody></table></section>';
 }
 function student(){
  root.innerHTML='<div class="row between"><div><span class="eyebrow">STUDENT HOMEWORK</span><h1>Vào bài tập</h1><p class="muted">Không cần email. Hãy nhập mã giáo viên cung cấp và tên học sinh.</p></div><span class="badge">Bài tập về nhà</span></div><div class="panel" style="max-width:650px"><form id="student-open" class="stack">'+field('Mã bài tập',input('code',new URLSearchParams(location.search).get('code')||'','text','required placeholder="2026151104ABCD"'))+field('Họ tên học sinh',input('name','','text','required minlength="2" maxlength="60"'))+'<button class="primary" type="submit">Bắt đầu làm bài →</button></form><p class="hint">Lưu ý: đăng nhập bằng mã đề và tên chưa chống được việc học sinh đổi tên hoặc dùng tài khoản ẩn danh mới. Cần mã cá nhân riêng khi triển khai chính thức.</p></div>';
@@ -122,7 +122,7 @@ function result(d){
  clearInterval(S.timer);S.student=null;
  root.innerHTML='<section class="panel" style="text-align:center;max-width:740px;margin:30px auto"><span class="eyebrow">HOMEWORK SUBMITTED</span><h1>Đã nộp bài</h1><div class="score">'+E(d.percent)+' / 100</div><h2>'+E(d.status)+'</h2><p class="muted">'+(d.pending?'Đây là điểm tự động tạm tính. Phần viết hoặc nói cần giáo viên chấm trước khi có kết quả cuối cùng.':'Kết quả được lưu trên máy chủ.')+'</p><button class="secondary" data-view="student">Về trang nhập mã</button></section>';
 }
-function navigate(view){clear();S.view=view;clearInterval(S.timer);document.querySelectorAll('[data-view]').forEach(x=>{if(x.classList.contains('nav'))x.classList.toggle('active',x.dataset.view===view)});if(view==='dashboard')dashboard();if(view==='library')library();if(view==='builder')builder();if(view==='reports')reports();if(view==='student')student();window.scrollTo({top:0,behavior:'smooth'});}
+function navigate(view){clear();S.view=view;clearInterval(S.timer);document.querySelectorAll('[data-view]').forEach(x=>{if(x.classList.contains('nav'))x.classList.toggle('active',x.dataset.view===view)});if(view==='login')root.innerHTML=login();if(view==='dashboard')dashboard();if(view==='library')library();if(view==='builder')builder();if(view==='reports')reports();if(view==='student')student();window.scrollTo({top:0,behavior:'smooth'});}
 async function refresh(){const d=await api('state');S.books=d.books||[];S.bank=d.bank||[];S.assignments=d.assignments||[];navigate(S.view)}
 function captureConfig(f){
  const d=new FormData(f),c=S.config;
@@ -189,11 +189,27 @@ function bind(){
     S.published=r;S.preview=null;await refresh();published();show('Đã tạo mã đề thành công.',true);return;
    }
    if(btn.dataset.copy){await navigator.clipboard.writeText(btn.dataset.copy);show('Đã sao chép '+btn.dataset.copy,true);return}
-   if(btn.dataset.report){const d=await api('report',{id:btn.dataset.report});reportDetails(d);return}
+   if(btn.dataset.report){const d=await api('report',{id:btn.dataset.report});S.activeReport={id:btn.dataset.report,...d};reportDetails(d);return}
    if(btn.dataset.editVariant!==undefined){
     const vi=Number(btn.dataset.editVariant),qi=Number(btn.dataset.editQ);S.editQuestion=S.preview[vi].questions[qi];
     document.body.insertAdjacentHTML('beforeend',editor(S.editQuestion));$('#type-fields').innerHTML=typeFields(S.editQuestion.type);
     const form=$('#manual-form');form.dataset.vi=vi;form.dataset.qi=qi;return;
+   }
+   if(btn.dataset.review!==undefined){
+    const row=S.activeReport?.rows?.[Number(btn.dataset.review)];
+    if(!row)throw Error('Không tìm thấy bài cần chấm.');
+    const questions=row.questions||[];
+    document.body.insertAdjacentHTML('beforeend','<div class="overlay"><section class="panel modal"><div class="row between"><h2>Chấm bài: '+E(row.name)+'</h2><button type="button" class="ghost" id="close-review">Đóng ✕</button></div><form id="review-form" data-uid="'+E(row.uid)+'" data-attempt="'+E(row.attempt)+'" class="stack">'+questions.map((q,i)=>{
+     if(!['essay','audio'].includes(q.type))return '';
+     const answer=row.answers?.[i];
+     return '<div class="question"><span class="pill">Câu '+(i+1)+' · '+E(T(q.type))+'</span><h3>'+E(q.prompt)+'</h3>'+(q.type==='essay'?'<div class="context">'+E(answer||'Chưa trả lời')+'</div>':'<button type="button" class="secondary btn-sm" data-listen="'+i+'" data-review-uid="'+E(row.uid)+'" data-review-attempt="'+E(row.attempt)+'">Nghe bài nói</button><div id="audio-review-'+i+'"></div>')+field('Điểm câu này (0–100)',input('manual-'+i,row.manualScores?.[i]??0,'number','min="0" max="100" required'))+'</div>';
+    }).join('')+'<button class="primary" type="submit">Hoàn tất chấm thủ công</button></form></section></div>');
+    return;
+   }
+   if(btn.id==='close-review'){document.querySelector('.overlay')?.remove();return}
+   if(btn.dataset.listen!==undefined){
+    const d=await api('audioLink',{id:S.activeReport.id,uid:btn.dataset.reviewUid,attempt:btn.dataset.reviewAttempt,index:Number(btn.dataset.listen)});
+    const element=$('#audio-review-'+btn.dataset.listen);if(element)element.innerHTML='<audio controls autoplay src="'+E(d.url)+'"></audio>';return;
    }
    if(btn.dataset.move!==undefined){const i=+btn.dataset.move,j=+btn.dataset.index,d=+btn.dataset.dir;const q=S.student.questions[i];const arr=Array.isArray(S.studentAnswers[i])?S.studentAnswers[i]:[...(q.items||[])].reverse();const k=j+d;if(k<0||k>=arr.length)return;[arr[j],arr[k]]=[arr[k],arr[j]];S.studentAnswers[i]=arr;task();return}
    if(btn.dataset.record!==undefined){await startRecord(+btn.dataset.record);return}
@@ -209,7 +225,7 @@ function bind(){
  });
  document.addEventListener('input',e=>{if(e.target.dataset.answer!==undefined&&e.target.dataset.option===undefined)S.studentAnswers[Number(e.target.dataset.answer)]=e.target.value});
  document.addEventListener('submit',async e=>{
-  if(!['teacher-login','book-form','manual-form','build-form','student-open','student-submit'].includes(e.target.id))return;
+  if(!['teacher-login','book-form','manual-form','build-form','student-open','student-submit','review-form'].includes(e.target.id))return;
   e.preventDefault();const form=e.target,button=form.querySelector('[type="submit"]');if(button)button.disabled=true;
   try{
    if(form.id==='teacher-login'){
@@ -236,9 +252,22 @@ function bind(){
     const d=new FormData(form);await studentAuth();const r=await api('open',{code:String(d.get('code')).toUpperCase().trim(),name:d.get('name')});
     S.student={...r,localStart:Date.now()};S.studentAnswers=Array(r.questions.length).fill(null);task();
    }
+   if(form.id==='review-form'){
+    if(!S.activeReport)throw Error('Không tìm thấy bài tập.');
+    const d=new FormData(form),manual={};
+    for(const [k,v] of d.entries())if(k.startsWith('manual-'))manual[k.slice(7)]=Number(v);
+    await api('review',{id:S.activeReport.id,uid:form.dataset.uid,attempt:form.dataset.attempt,manual});
+    document.querySelector('.overlay')?.remove();
+    const updated=await api('report',{id:S.activeReport.id});S.activeReport={id:S.activeReport.id,...updated};
+    reportDetails(updated);show('Đã lưu điểm giáo viên chấm.',true);
+   }
    if(form.id==='student-submit'){
     if(!S.student)throw Error('Không có bài tập đang mở.');
     if(!confirm('Nộp bài ngay? Sau khi nộp sẽ không sửa được lượt làm này.'))return;
+    for(let i=0;i<S.student.questions.length;i++)if(S.student.questions[i].type==='audio'&&typeof S.studentAnswers[i]==='string'&&S.studentAnswers[i].startsWith('data:audio/')){
+      const upload=await api('uploadAudio',{code:S.student.code,attempt:S.student.attempt,index:i,dataUrl:S.studentAnswers[i]});
+      S.studentAnswers[i]={audioPath:upload.audioPath};
+    }
     const r=await api('submit',{code:S.student.code,attempt:S.student.attempt,answers:S.studentAnswers});
     result(r);show('Bài tập đã được nộp lên máy chủ.',true);
    }
@@ -248,7 +277,7 @@ function bind(){
  fileObserve.observe(document.body,{childList:true,subtree:true});
 }
 onAuthStateChanged(auth,u=>{
- S.user=u;S.teacher=!!u&&!u.isAnonymous;$('#account').innerHTML=S.teacher?'<span>'+E(u.email||'Giáo viên')+'</span> <button class="ghost" id="logout">Đăng xuất</button>':'<span>Teacher / Student</span>';
+ S.user=u;S.teacher=!!u&&!u.isAnonymous;$('#account').innerHTML=S.teacher?'<span>'+E(u.email||'Giáo viên')+'</span> <button class="ghost" id="logout">Đăng xuất</button>':'<button class="secondary btn-sm" data-view="login">Đăng nhập giáo viên</button>';
 });
 bind();
 navigate(new URLSearchParams(location.search).get('code')?'student':'dashboard');
