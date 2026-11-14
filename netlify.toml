@@ -1,0 +1,19 @@
+[build]
+  publish = "homework"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"
+    Permissions-Policy = "camera=(), geolocation=(), microphone=(self)"
+
+[[redirects]]
+  from = "/api/homework"
+  to = "/.netlify/functions/homework-api"
+  status = 200
