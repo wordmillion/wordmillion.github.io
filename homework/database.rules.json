@@ -1,0 +1,10 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "wm2": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
