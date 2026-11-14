@@ -24,7 +24,7 @@ async function userOf(req,auth){
  return auth.verifyIdToken(value.substring(7));
 }
 function safeQuestion(q){
- return {type:q.type,context:q.context||'',contextKind:q.contextKind||'text',contextURL:q.contextURL||'',prompt:q.prompt,
+ return {type:q.type,context:q.context||'',contextGroup:q.contextGroup||'',contextKind:q.contextKind||'text',contextURL:q.contextURL||'',prompt:q.prompt,
  options:q.options||[],items:q.type==='ordering'?shuffled(q.items||[]):[],matches:q.type==='matching'?(q.matches||[]).map(x=>({left:x.left})):[],matchOptions:q.type==='matching'?shuffled((q.matches||[]).map(x=>x.right)):[],points:Number(q.points)||1};
 }
 function validateQuestion(q){
@@ -80,7 +80,7 @@ async function aiQuestions(spec,books,bank){
  if(!process.env.OPENAI_API_KEY)throw Error('Chưa cấu hình OPENAI_API_KEY. Có thể dùng câu hỏi từ ngân hàng thay vì AI.');
  const amount=Math.min(65,Math.max(spec.count,Math.min(spec.count+Math.max(6,Math.floor(spec.count*.4)),65)));
  const prompt={request:{count:amount,grade:spec.grade,topic:spec.topic,types:spec.types},sources:books.map(b=>({title:b.title,text:clip(b.text,12000)})),bank:bank.slice(0,35)};
- const instruction='You design age-appropriate English homework. Return ONLY a JSON object with questions array, no markdown. Use exactly the requested question templates: select, cloze, matching, ordering, short, essay, audio. For select: options strings and correct integer array; cloze/short: accepted array of plain normalized strings; ordering: items in correct order; matching: matches array of {left,right}; essay/audio: teacher review required. Each question has type,prompt,context,contextKind,contextURL,options,correct,accepted,items,matches,points,explanation. Use source excerpts only as inspiration: do not reproduce substantial copyrighted passages. Ensure all correct answers are logically accurate. In any context-based question give sufficient context. Generate varied questions with meaningful distractors. No personal data.';
+ const instruction='You design age-appropriate English homework. Return ONLY a JSON object with questions array, no markdown. Use exactly the requested question templates: select, cloze, matching, ordering, short, essay, audio. For select: options strings and correct integer array; cloze/short: accepted array of plain normalized strings; ordering: items in correct order; matching: matches array of {left,right}; essay/audio: teacher review required. Each question has type,prompt,context,contextGroup,contextKind,contextURL,options,correct,accepted,items,matches,points,explanation. Use source excerpts only as inspiration: do not reproduce substantial copyrighted passages. Ensure all correct answers are logically accurate. For 2–4 connected reading questions, use the SAME non-empty contextGroup value and the SAME context text for each, so the app shows one shared parent Context Block. In any context-based question give sufficient context. Generate varied questions with meaningful distractors. No personal data.';
  const out=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_MODEL||'gpt-4.1-mini',input:[{role:'system',content:instruction},{role:'user',content:JSON.stringify(prompt)}],text:{format:{type:'json_object'}}})});
  if(!out.ok)throw Error('Không thể tạo câu hỏi AI: HTTP '+out.status);
  const payload=await out.json();
