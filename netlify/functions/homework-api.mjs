@@ -99,7 +99,7 @@ async function teacherAction(action,data,u,db){
   const b=data.book||{};if(!clip(b.title,120).trim()||!clip(b.text,180000).trim())return fail('Thiếu tên hoặc nội dung giáo trình.');
   if(String(b.text).length>180000)return fail('Giáo trình vượt giới hạn 180.000 ký tự. Hãy tách thành từng chương.');
   const id=root.child('books').push().key;
-  await root.child('books/'+id).set({title:clip(b.title,120),grade:clip(b.grade,10),className:clip(b.className,40),group:clip(b.group,80),text:b.text,updatedAt:Date.now()});
+  await root.child('books/'+id).set({title:clip(b.title,120),grade:clip(b.grade,10),className:clip(b.className,40),group:clip(b.group||b.title,120),kind:b.kind==='book'?'book':'unit',originalFile:clip(b.originalFile,160),text:b.text,updatedAt:Date.now()});
   return json({id});
  }
  if(action==='bank'){
