@@ -354,7 +354,7 @@ function bind(){
      if(content.length>180000)throw Error('Tài liệu vượt giới hạn 180.000 ký tự. Vui lòng tách thành các chương.');
      if(!content.trim())throw Error('Không trích xuất được chữ. PDF dạng ảnh scan chưa được hỗ trợ.');
      $('#'+textId).value=content;
-     if(isBook){const title=$('#book-form [name="title"]');if(title&&!title.value.trim())title.value=file.name.replace(/\\.[^.]+$/,'').replace(/[_-]+/g,' ').trim();}
+     if(isBook){const title=$('#book-form [name="title"]');if(title&&!title.value.trim())title.value=file.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').trim();}
      show('Đã đọc '+content.length+' ký tự từ file. Hãy kiểm tra và sửa tên trước khi lưu.',true);
     }catch(err){show(err.message||String(err))}
    });
