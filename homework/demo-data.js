@@ -1,3 +1,4 @@
+import { buildDistinctVariants, chooseVariant, distinctVariantIndexes, DISTINCT_VARIANTS_ERROR } from './assignment-variants.js';
 /* Local-only demo data; no AI generation, authentication, shared storage, or security guarantees. */
 import { listDemoTextbooks, saveDemoTextbook } from './demo-textbooks.js';
 
@@ -50,13 +51,15 @@ export async function demoAction(action,req={}){
   const pool=Object.values(d.bank).filter(q=>(c.types||[]).includes(q.type));
   const n=Math.min(100,Number(c.count)||10),v=Math.min(100,Number(c.variants)||1);
   if(pool.length<n)err('Ngân hàng hiện có '+pool.length+' câu thuộc các dạng đã chọn, chưa đủ '+n+' câu. Hãy giảm số câu hoặc chọn thêm dạng bài.');
-  const preview=Array.from({length:v},(_,index)=>({index:index+1,questions:seed(pool).slice(0,n).map(q=>structuredClone(q))}));
+  const preview=buildDistinctVariants(v,()=>seed(pool).slice(0,n).map(q=>structuredClone(q)));
+  if(preview.length!==v)err(DISTINCT_VARIANTS_ERROR);
   return{preview,source:'demo-bank',warning:'Bản xem trước dùng dữ liệu trong trình duyệt, không có AI thật.'};
  }
  if(action==='publish'){
   const c=req.config||{},variants=req.variants||[];
   if(!variants.length||variants.length!==Number(c.variants))err('Số mã đề không hợp lệ.');
   if(!(Number(c.good)>Number(c.pass))||c.good>100||c.pass<0)err('Ngưỡng Tốt cần lớn hơn ngưỡng Đạt.');
+  if(distinctVariantIndexes(variants).length!==variants.length)err(DISTINCT_VARIANTS_ERROR);
   const key=id(),code=id().replaceAll('-','').slice(0,24).toUpperCase();
   const title=String(req.title||'').trim().slice(0,120)||'Bài tập tiếng Anh';
   d.codes[code]={assignment:key};
@@ -82,7 +85,9 @@ export async function demoAction(action,req={}){
   if(!r){
    if(used>=Number(a.config.attempts))err('Đã hết số lần làm bài.');
    const prior=attempts.find(x=>x.code===code);
-   const variant=m.variant??prior?.variant??Math.floor(Math.random()*a.variants.length);
+   const variant=m.variant??prior?.variant??chooseVariant(a.variants,Object.entries(d.attempts)
+    .filter(([student])=>student.startsWith(m.assignment+'|'))
+    .map(([,records])=>records.find(record=>record.code===code)?.variant),n=>Math.floor(Math.random()*n));
    r={id:id(),code,name,startedAt:now,variant};
    attempts.push(r);save(d);
   }

@@ -1,8 +1,8 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
 import { getAuth,signInAnonymously,signInWithEmailAndPassword,signOut,onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
-import { demoAction } from './demo-data.js?v=shared-assignment';
-import { initLanguage } from './languages.js?v=shared-assignment';
+import { demoAction } from './demo-data.js?v=distinct-variants';
+import { initLanguage } from './languages.js?v=distinct-variants';
 import { readTextbook } from './textbook-reader.js?v=ocr2';
 import { MAX_TEXTBOOK_FILE_MB, MAX_TEXTBOOK_TEXT_LENGTH, TEXTBOOK_TEXT_LIMIT_MESSAGE } from './textbook-limits.js';
 import { openExportDialog,closeExportDialog,runExport } from './exporter.js';
@@ -126,7 +126,7 @@ function published(){
  if(!S.published)return;
  const d=S.published;
  const link=E(homeworkLink(d.code));
- root.innerHTML='<section class="panel"><h1>Bài tập về nhà cần nộp</h1><h2>'+E(d.title)+'</h2><p class="muted">Gửi đường dẫn này cho cả lớp. Mỗi học sinh sẽ được hệ thống tự chọn một phiên bản đề.</p><div class="actions"><button class="secondary" data-open-homework="'+link+'">Mở trang học sinh</button><button class="primary" data-copy-link="'+link+'">Sao chép đường dẫn bài tập</button></div><div class="divider"></div><div class="actions"><button class="secondary" id="export-published" data-assignment="'+E(d.id)+'">Xuất đề Word / PDF</button><button class="secondary" data-view="reports">Xem kết quả</button><button class="secondary" data-view="builder">Giao bài mới</button></div></section>';
+ root.innerHTML='<section class="panel"><h1>Bài tập về nhà cần nộp</h1><h2>'+E(d.title)+'</h2><p class="muted">Gửi một đường dẫn cho cả lớp. Hệ thống ưu tiên giao đề chưa có học sinh nào nhận.</p><div class="actions"><button class="secondary" data-open-homework="'+link+'">Mở trang học sinh</button><button class="primary" data-copy-link="'+link+'">Sao chép đường dẫn bài tập</button></div><div class="divider"></div><div class="actions"><button class="secondary" id="export-published" data-assignment="'+E(d.id)+'">Xuất đề Word / PDF</button><button class="secondary" data-view="reports">Xem kết quả</button><button class="secondary" data-view="builder">Giao bài mới</button></div></section>';
 }
 function reports(){
  if(!keepTeacher())return;

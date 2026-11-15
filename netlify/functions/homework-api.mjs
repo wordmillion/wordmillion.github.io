@@ -1,3 +1,4 @@
+import { buildDistinctVariants, chooseVariant, distinctVariantIndexes, DISTINCT_VARIANTS_ERROR } from '../../homework/assignment-variants.js';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getDatabase } from 'firebase-admin/database';
@@ -39,8 +40,7 @@ function validateQuestion(q){
 const unique=a=>[...new Set(a)];
 const shuffled=(a)=>{const x=[...a];for(let i=x.length-1;i>0;i--){const j=randomBytes(4).readUInt32BE(0)%(i+1);[x[i],x[j]]=[x[j],x[i]]}return x};
 function versions(pool,count,num){
- return Array.from({length:num},(_,k)=>{
-  const questions=shuffled(pool).slice(0,count).map(q=>{
+ return buildDistinctVariants(num,()=>shuffled(pool).slice(0,count).map(q=>{
    const v=structuredClone(q);
    if(v.type==='select'&&v.options?.length){
     const order=shuffled(v.options.map((_,i)=>i));
@@ -48,9 +48,8 @@ function versions(pool,count,num){
     v.correct=order.map((n,i)=>q.correct.includes(n)?i:-1).filter(i=>i>=0);
    }
    return v;
-  });
-  return {index:k+1,questions};
- });
+ }));
+
 }
 function norm(v){return String(v??'').normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/\s+/g,' ')}
 function matchText(answer,accepted){
@@ -118,7 +117,9 @@ async function teacherAction(action,data,u,db){
   if(data.useAI)pool=await aiQuestions(spec,books,bank);
   else pool=bank;
   if(pool.length<spec.count)return fail('Không đủ câu hỏi phù hợp ('+pool.length+'/'+spec.count+'). Thêm ngân hàng hoặc bật AI.');
-  return json({preview:versions(pool,spec.count,spec.variants),source:data.useAI?'ai+bank':'bank',warning:'Giáo viên phải duyệt đáp án trước khi xuất bản.'});
+  const preview=versions(pool,spec.count,spec.variants);
+  if(preview.length!==spec.variants)return fail(DISTINCT_VARIANTS_ERROR);
+  return json({preview,source:data.useAI?'ai+bank':'bank',warning:'Giáo viên phải duyệt đáp án trước khi xuất bản.'});
  }
  if(action==='publish'){
   const config={...DEFAULTS,...data.config};
@@ -130,6 +131,7 @@ async function teacherAction(action,data,u,db){
   if(!Number.isFinite(config.pass)||!Number.isFinite(config.good)||config.pass<0||config.good>100||config.good<=config.pass)return fail('Ngưỡng Tốt phải lớn hơn ngưỡng Đạt và trong khoảng 0–100.');
   const variants=(data.variants||[]).slice(0,100);
   if(!variants.length||variants.length!==config.variants||variants.some(v=>!Array.isArray(v.questions)||v.questions.length!==config.count||v.questions.some(q=>!validateQuestion(q))))return fail('Số lượng đề, câu hỏi hoặc đáp án không hợp lệ.');
+  if(distinctVariantIndexes(variants).length!==variants.length)return fail(DISTINCT_VARIANTS_ERROR);
   const id=root.child('assignments').push().key;
   const code=randomBytes(12).toString('hex').toUpperCase();
   const title=clip(data.title,120).trim()||'Bài tập tiếng Anh';
@@ -195,29 +197,33 @@ async function studentAction(action,data,u,db){
  if(!a||a.status!=='published')return fail('Bài tập không còn khả dụng.',404);
  if(action==='assignmentInfo')return json({title:a.title});
  const name=clip(data.name,60).trim();
- const base=db.ref('wm2/attempts/'+mapped.assignment+'/'+u.uid);
  if(action==='open'){
   const now=Date.now();
-  const nextKey=base.push().key;
-  const randomVariant=randomInt(a.variants.length);
+  const base=db.ref('wm2/attempts/'+mapped.assignment);
+  // Allocate and create the attempt atomically so simultaneous joins cannot
+  // each claim the same least-used version.
+  const nextKey=base.child(u.uid).push().key;
   let key,reason;
   const opened=await base.transaction(previous=>{
-   const old=previous||{};
+   const roster=previous||{};
+   const old=roster[u.uid]||{};
    const attempts=Object.entries(old).filter(([k,v])=>k!=='name'&&v&&typeof v==='object');
    const expired=r=>now-r.startedAt>Number(a.config.minutes)*60000;
    const shared=mapped.variant===undefined;
    const active=attempts.filter(([,v])=>v.code===code&&!v.submittedAt&&(!shared||!expired(v))).sort((x,y)=>y[1].startedAt-x[1].startedAt)[0];
-   if(active){key=active[0];return old;}
+   if(active){key=active[0];return roster;}
    const used=attempts.filter(([,v])=>v.submittedAt||(shared&&expired(v))).length;
    if(used>=a.config.attempts){reason='Bạn đã dùng hết số lần làm bài.';return;}
    if(name.length<2){reason='Nhập tên học sinh để bắt đầu.';return;}
    const prior=attempts.find(([,v])=>v.code===code)?.[1];
-   const variant=mapped.variant??prior?.variant??randomVariant;
+   const variant=mapped.variant??prior?.variant??chooseVariant(a.variants,Object.values(roster).map(student=>
+    Object.values(student||{}).find(attempt=>attempt?.code===code)?.variant
+   ),randomInt);
    key=nextKey;
-   return {...old,name,[key]:{code,name,startedAt:now,variant}};
+   return {...roster,[u.uid]:{...old,name,[key]:{code,name,startedAt:now,variant}}};
   },undefined,false);
   if(!opened.committed)return fail(reason||'Không thể mở bài tập. Hãy thử lại.');
-  const rec=opened.snapshot.child(key).val();
+  const rec=opened.snapshot.child(u.uid).child(key).val();
   const variant=a.variants?.[rec.variant];
   if(!variant)return fail('Không tìm thấy đề.',404);
   const remaining=Math.max(0,a.config.minutes*60-Math.floor((Date.now()-rec.startedAt)/1000));
