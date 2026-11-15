@@ -3,6 +3,7 @@ import { getAuth,signInAnonymously,signInWithEmailAndPassword,signOut,onAuthStat
 import { firebaseConfig } from './firebase-config.js';
 import { demoAction } from './demo-data.js';
 import { initLanguage } from './languages.js';
+import { openExportDialog,closeExportDialog,runExport } from './exporter.js';
 const isPreview=location.hostname.endsWith('github.io')||location.hostname==='localhost';
 const $=s=>document.querySelector(s),root=$('#content'),alertBox=$('#alert');
 const fb=initializeApp(firebaseConfig),auth=getAuth(fb);
@@ -17,7 +18,7 @@ const TEMPLATES=[
 ];
 const S={view:'dashboard',user:null,teacher:false,books:[],bank:[],assignments:[],preview:null,published:null,
 config:{grade:4,className:'',group:'',topic:'',count:30,variants:10,students:10,attempts:2,minutes:45,pass:60,good:85,types:['select','cloze','ordering','short'],useAI:false,bookIds:[]},
-student:null,studentAnswers:[],recording:null,mediaRecorder:null,recordingChunks:[],timer:null,remaining:0,sourceUsed:null,editQuestion:null,activeReport:null};
+student:null,studentAnswers:[],recording:null,mediaRecorder:null,recordingChunks:[],timer:null,remaining:0,sourceUsed:null,editQuestion:null,activeReport:null,exportSource:null};
 const E=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const field=(label,input)=>'<div class="field"><label>'+label+'</label>'+input+'</div>';
 const input=(name,value,type='text',attrs='')=>'<input name="'+E(name)+'" type="'+type+'" value="'+E(value??'')+'" '+attrs+'>';
@@ -89,16 +90,16 @@ function builder(){
 function previewView(){
  const panel=$('#preview-out');if(!panel)return;
  const variants=S.preview||[];
- panel.innerHTML='<section class="panel"><div class="row between"><div><span class="eyebrow">TEACHER REVIEW</span><h2>5. Duyệt bộ đề trước khi giao</h2></div><span class="badge">'+variants.length+' mã đề · '+(variants[0]?.questions.length||0)+' câu / đề</span></div><p class="hint">AI có thể tạo câu sai hoặc vượt trình độ. Kiểm tra từng đáp án, đặc biệt trước khi gửi cho học sinh. Bạn có thể sửa trực tiếp cấu trúc câu hỏi bên dưới.</p>'+field('Tên bài tập',input('assignmentTitle',S.config.topic?('Bài tập – '+S.config.topic):'Bài tập tiếng Anh'))+'<div class="stack">'+variants.map((v,i)=>'<details class="card" '+(i===0?'open':'')+'><summary><b>Đề '+(i+1)+'</b> · '+v.questions.length+' câu</summary><div class="stack" style="margin-top:12px">'+v.questions.map((q,j)=>'<div class="question"><span class="pill">'+E(T(q.type))+'</span><p><strong>'+(j+1)+'. '+E(q.prompt)+'</strong></p>'+((q.options||[]).length?'<p class="muted small">'+q.options.map((x,k)=>'ABCD'[k]+'. '+E(x)).join(' · ')+'</p>':'')+'<p class="small muted">Đáp án: '+E(q.correct?.join(',')??q.accepted?.join(' | ')??q.items?.join(' → ')??(q.type==='essay'||q.type==='audio'?'Giáo viên chấm':'xem chi tiết'))+'</p><button type="button" class="ghost btn-sm" data-edit-variant="'+i+'" data-edit-q="'+j+'">Chỉnh sửa câu này</button></div>').join('')+'</div></details>').join('')+'</div><div class="actions"><button class="primary" id="publish">Duyệt & phát hành mã đề →</button><button class="secondary" id="discard-preview">Tạo lại đề</button></div></section>';
+ panel.innerHTML='<section class="panel"><div class="row between"><div><span class="eyebrow">TEACHER REVIEW</span><h2>5. Duyệt bộ đề trước khi giao</h2></div><span class="badge">'+variants.length+' mã đề · '+(variants[0]?.questions.length||0)+' câu / đề</span></div><p class="hint">AI có thể tạo câu sai hoặc vượt trình độ. Kiểm tra từng đáp án, đặc biệt trước khi gửi cho học sinh. Bạn có thể sửa trực tiếp cấu trúc câu hỏi bên dưới.</p>'+field('Tên bài tập',input('assignmentTitle',S.config.topic?('Bài tập – '+S.config.topic):'Bài tập tiếng Anh'))+'<div class="stack">'+variants.map((v,i)=>'<details class="card" '+(i===0?'open':'')+'><summary><b>Đề '+(i+1)+'</b> · '+v.questions.length+' câu</summary><div class="stack" style="margin-top:12px">'+v.questions.map((q,j)=>'<div class="question"><span class="pill">'+E(T(q.type))+'</span><p><strong>'+(j+1)+'. '+E(q.prompt)+'</strong></p>'+((q.options||[]).length?'<p class="muted small">'+q.options.map((x,k)=>'ABCD'[k]+'. '+E(x)).join(' · ')+'</p>':'')+'<p class="small muted">Đáp án: '+E(q.correct?.join(',')??q.accepted?.join(' | ')??q.items?.join(' → ')??(q.type==='essay'||q.type==='audio'?'Giáo viên chấm':'xem chi tiết'))+'</p><button type="button" class="ghost btn-sm" data-edit-variant="'+i+'" data-edit-q="'+j+'">Chỉnh sửa câu này</button></div>').join('')+'</div></details>').join('')+'</div><div class="actions"><button type="button" class="secondary" id="export-draft">Xuất đề Word / PDF</button><button class="primary" id="publish">Duyệt & phát hành mã đề →</button><button class="secondary" id="discard-preview">Tạo lại đề</button></div></section>';
 }
 function published(){
  if(!S.published)return;
  const d=S.published;
- root.innerHTML='<section class="panel"><span class="eyebrow">PUBLISHED ASSIGNMENT</span><h1>Đã tạo '+d.codes.length+' mã đề</h1><p class="muted">Học sinh mở đường dẫn cố định và nhập một trong các mã sau. Bạn có thể phân mã theo danh sách lớp.</p><div class="grid3">'+d.codes.map((code,i)=>'<div class="card"><span class="pill">Đề '+(i+1)+'</span><h2 class="code">'+E(code)+'</h2><button class="secondary btn-sm" data-copy="'+E(code)+'">Sao chép mã</button></div>').join('')+'</div><p class="hint">Định dạng: YYYYDDMMGG + 4 ký tự ngẫu nhiên. Ví dụ 2026151104ABCD = 15/11/2026, khối 04. Mã đề khác nhau không nhất thiết có 100% câu hỏi khác nhau; độ đa dạng phụ thuộc ngân hàng và AI.</p><div class="actions"><button class="secondary" data-view="reports">Xem kết quả</button><button class="primary" data-view="builder">Giao bài mới</button></div></section>';
+ root.innerHTML='<section class="panel"><span class="eyebrow">PUBLISHED ASSIGNMENT</span><h1>Đã tạo '+d.codes.length+' mã đề</h1><p class="muted">Học sinh mở đường dẫn cố định và nhập một trong các mã sau. Bạn có thể phân mã theo danh sách lớp.</p><div class="grid3">'+d.codes.map((code,i)=>'<div class="card"><span class="pill">Đề '+(i+1)+'</span><h2 class="code">'+E(code)+'</h2><button class="secondary btn-sm" data-copy="'+E(code)+'">Sao chép mã</button></div>').join('')+'</div><p class="hint">Định dạng: YYYYDDMMGG + 4 ký tự ngẫu nhiên. Ví dụ 2026151104ABCD = 15/11/2026, khối 04. Mã đề khác nhau không nhất thiết có 100% câu hỏi khác nhau; độ đa dạng phụ thuộc ngân hàng và AI.</p><div class="actions"><button class="secondary" id="export-published" data-assignment="'+E(d.id)+'">Xuất đề Word / PDF</button><button class="secondary" data-view="reports">Xem kết quả</button><button class="primary" data-view="builder">Giao bài mới</button></div></section>';
 }
 function reports(){
  if(!keepTeacher())return;
- root.innerHTML='<div class="row between"><div><span class="eyebrow">ASSESSMENT INSIGHTS</span><h1>Kết quả bài tập</h1></div><span class="badge">'+S.assignments.length+' bài tập</span></div><section class="panel"><table><thead><tr><th>Bài tập</th><th>Lớp</th><th>Mã đề</th><th>Ngày giao</th><th></th></tr></thead><tbody>'+S.assignments.map(a=>'<tr><td><b>'+E(a.title)+'</b></td><td>'+E(a.config?.className||'—')+'</td><td>'+a.codes?.length+'</td><td>'+date(a.createdAt)+'</td><td><button class="secondary btn-sm" data-report="'+E(a.id)+'">Xem điểm</button></td></tr>').join('')+'</tbody></table>'+(S.assignments.length?'':'<p class="muted">Chưa phát hành bài tập.</p>')+'</section><div id="report-details"></div>';
+ root.innerHTML='<div class="row between"><div><span class="eyebrow">ASSESSMENT INSIGHTS</span><h1>Kết quả bài tập</h1></div><span class="badge">'+S.assignments.length+' bài tập</span></div><section class="panel"><table><thead><tr><th>Bài tập</th><th>Lớp</th><th>Mã đề</th><th>Ngày giao</th><th></th></tr></thead><tbody>'+S.assignments.map(a=>'<tr><td><b>'+E(a.title)+'</b></td><td>'+E(a.config?.className||'—')+'</td><td>'+a.codes?.length+'</td><td>'+date(a.createdAt)+'</td><td><button class="secondary btn-sm" data-report="'+E(a.id)+'">Xem điểm</button> <button class="secondary btn-sm" data-export-assignment="'+E(a.id)+'">Xuất đề</button></td></tr>').join('')+'</tbody></table>'+(S.assignments.length?'':'<p class="muted">Chưa phát hành bài tập.</p>')+'</section><div id="report-details"></div>';
 }
 function reportDetails(d){
  const list=$('#report-details');if(!list)return;
@@ -205,6 +206,18 @@ function bind(){
    if(btn.id==='add-manual'){S.editQuestion=null;document.body.insertAdjacentHTML('beforeend',editor());$('#type-fields').innerHTML=typeFields('select');return}
    if(btn.id==='close-editor'){document.querySelector('.overlay')?.remove();return}
    if(btn.id==='discard-preview'){S.preview=null;builder();return}
+   if(btn.id==='close-export'){closeExportDialog();return}
+   if(btn.id==='export-draft'){
+    if(!S.preview?.length)throw Error('Hãy tạo bản nháp bài tập trước khi xuất.');
+    S.exportSource={variants:structuredClone(S.preview),meta:{title:$('[name="assignmentTitle"]')?.value||'Bài tập tiếng Anh',...structuredClone(S.config)}};
+    openExportDialog();return;
+   }
+   if(btn.id==='export-published'||btn.dataset.exportAssignment){
+    const assignment=btn.dataset.assignment||btn.dataset.exportAssignment;
+    const a=await api('exportAssignment',{id:assignment});
+    S.exportSource={variants:a.variants,meta:{title:a.title,...a.config}};
+    openExportDialog();return;
+   }
    if(btn.id==='publish'){
     if(!S.preview)throw Error('Chưa có đề để phát hành.');
     btn.disabled=true;const title=$('[name="assignmentTitle"]')?.value||'Bài tập tiếng Anh';
@@ -249,7 +262,7 @@ function bind(){
  document.addEventListener('dragstart',e=>{const t=e.target.closest('[data-drag-answer]');if(t)e.dataTransfer.setData('text/plain',t.dataset.dragAnswer)});document.addEventListener('dragover',e=>{if(e.target.closest('[data-match]'))e.preventDefault()});document.addEventListener('drop',e=>{const t=e.target.closest('[data-match]');if(!t)return;e.preventDefault();const x=e.dataTransfer.getData('text/plain');if(!x)return;t.value=x;t.dispatchEvent(new Event('change',{bubbles:true}))});
  document.addEventListener('input',e=>{if(e.target.dataset.answer!==undefined&&e.target.dataset.option===undefined)S.studentAnswers[Number(e.target.dataset.answer)]=e.target.value});
  document.addEventListener('submit',async e=>{
-  if(!['teacher-login','book-form','manual-form','build-form','student-open','student-submit','review-form'].includes(e.target.id))return;
+  if(!['teacher-login','book-form','manual-form','build-form','student-open','student-submit','review-form','export-form'].includes(e.target.id))return;
   e.preventDefault();const form=e.target,button=form.querySelector('[type="submit"]');if(button)button.disabled=true;
   try{
    if(form.id==='teacher-login'){
@@ -284,6 +297,12 @@ function bind(){
     document.querySelector('.overlay')?.remove();
     const updated=await api('report',{id:S.activeReport.id});S.activeReport={id:S.activeReport.id,...updated};
     reportDetails(updated);show('Đã lưu điểm giáo viên chấm.',true);
+   }
+   if(form.id==='export-form'){
+    if(!S.exportSource)throw Error('Không tìm thấy bộ đề để xuất.');
+    const d=new FormData(form);
+    await runExport({...S.exportSource,format:d.get('format'),arrangement:d.get('arrangement'),audience:d.get('audience'),status:msg=>{const node=$('#export-status');if(node)node.textContent=msg}});
+    return;
    }
    if(form.id==='student-submit'){
     if(!S.student)throw Error('Không có bài tập đang mở.');
