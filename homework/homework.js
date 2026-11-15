@@ -42,27 +42,44 @@ function login(){
 function dashboard(){
  root.innerHTML='<section class="hero"><div><span class="eyebrow">AI HOMEWORK STUDIO</span><h1>Less paperwork.<br><em>More learning.</em></h1><p>Biến giáo trình và ngân hàng câu hỏi thành bài tập phù hợp từng lớp. Tạo nhiều mã đề, hạn chế số lần làm, kiểm tra kết quả theo ngưỡng giáo viên đặt.</p><div class="actions"><button class="primary" data-view="builder">Giao bài tập →</button><button class="secondary" data-view="library">Quản lý giáo trình</button></div></div><div class="hero-art"><div class="ring"><div class="center-star">✦</div></div></div></section><section class="grid3" style="margin-top:20px"><div class="panel"><div class="metric">7</div><h3>Khuôn mẫu câu hỏi</h3><p class="muted">Kết hợp thành nhiều dạng bài tiếng Anh.</p></div><div class="panel"><div class="metric">'+S.books.length+'</div><h3>Giáo trình</h3><p class="muted">Tổ chức theo khối, lớp và bộ sách.</p></div><div class="panel"><div class="metric">'+S.assignments.length+'</div><h3>Bài tập đã giao</h3><p class="muted">Mã đề và kết quả được quản lý riêng.</p></div></section>';
 }
-function textbookTree(books){
- const gradeGroups=new Map();
- for(const book of books){
-  const grade=String(book.grade||'Chưa phân khối');
-  const group=String(book.group||'Chưa phân bộ sách').trim();
-  if(!gradeGroups.has(grade))gradeGroups.set(grade,new Map());
-  if(!gradeGroups.get(grade).has(group))gradeGroups.get(grade).set(group,[]);
-  gradeGroups.get(grade).get(group).push(book);
+function textbookCatalog(books){
+ const groups=new Map();
+ for(const b of books){
+  const grade=String(b.grade||'—'),collection=String(b.group||b.title||'Chưa đặt tên').trim();
+  const key=grade+'\u0000'+collection.toLocaleLowerCase('vi');
+  if(!groups.has(key))groups.set(key,{grade,name:collection,books:[],units:[],createdAt:Number(b.createdAt||b.updatedAt)||0});
+  const g=groups.get(key);
+  g.createdAt=Math.min(g.createdAt||Number.MAX_SAFE_INTEGER,Number(b.createdAt||b.updatedAt)||Number.MAX_SAFE_INTEGER);
+  if(b.kind==='book')g.books.push(b);else g.units.push(b);
  }
- const grades=[...gradeGroups.keys()].sort((a,b)=>Number(a)-Number(b));
- return grades.map(grade=>{
-  const groups=gradeGroups.get(grade);
-  return '<details class="textbook-grade" open><summary><span class="folder-icon">▸</span> Khối '+E(grade)+' <span class="pill">'+[...groups.values()].reduce((n,x)=>n+x.length,0)+' bài học</span></summary><div class="tree-indent">'+[...groups].sort((a,b)=>a[0].localeCompare(b[0],'vi')).map(([name,items])=>'<details class="textbook-collection" open><summary><span class="folder-icon">▸</span> '+E(name)+' <span class="muted small">('+items.length+' Unit)</span></summary><div class="tree-indent">'+items.sort((a,b)=>a.title.localeCompare(b.title,'vi')).map(b=>'<div class="textbook-unit"><span class="book-symbol">▤</span><div><strong>'+E(b.title)+'</strong><div class="small muted">'+(b.className?'<span class="legacy-class">Đã nhập từ lớp '+E(b.className)+' · Dùng chung được cho các lớp cùng khối</span>':'Bài học thuộc bộ sách')+'</div></div></div>').join('')+'</div></details>').join('')+'</div></details>';
- }).join('');
+ return [...groups.values()].sort((a,b)=>Number(a.grade)-Number(b.grade)||a.name.localeCompare(b.name,'vi',{numeric:true}));
+}
+function unitSort(a,b){
+ const unit=x=>{const n=/(?:unit|bài|lesson|chapter|chương)\s*(\d+)/i.exec(String(x.title||''));return n?Number(n[1]):Number.MAX_SAFE_INTEGER};
+ return unit(a)-unit(b)||String(a.title).localeCompare(String(b.title),'vi',{numeric:true});
+}
+function textbookTree(books){
+ const catalog=textbookCatalog(books),grades=[...new Set(catalog.map(x=>x.grade))].sort((a,b)=>Number(a)-Number(b));
+ return grades.map(grade=>'<details class="textbook-grade" open><summary><span class="folder-icon">▸</span> Khối '+E(grade)+' <span class="pill">'+catalog.filter(x=>x.grade===grade).length+' bộ sách</span></summary><div class="tree-indent">'+catalog.filter(x=>x.grade===grade).map(g=>'<details class="textbook-collection" open><summary><span class="folder-icon">▸</span> '+E(g.name)+' <span class="muted small">('+g.books.length+' tài liệu sách, '+g.units.length+' Unit)</span></summary><div class="tree-indent">'+g.books.map(b=>'<div class="textbook-unit"><span class="book-symbol">▣</span><div><strong>Toàn bộ sách: '+E(b.title)+'</strong><div class="small muted">'+E(b.originalFile||'Nội dung văn bản đã trích xuất')+'</div></div></div>').join('')+g.units.sort(unitSort).map(b=>'<div class="textbook-unit"><span class="book-symbol">▤</span><div><strong>'+E(b.title)+'</strong><div class="small muted">'+(b.className?'Đã nhập từ lớp '+E(b.className)+' · ':'')+'Dùng chung cho các lớp trong khối</div></div></div>').join('')+(g.books.length||g.units.length?'':'<p class="muted">Chưa có nội dung.</p>')+'</div></details>').join('')+'</div></details>').join('');
+}
+function catalogOptions(grade){
+ const list=textbookCatalog(S.books).filter(x=>x.grade===String(grade));
+ return '<option value="">— Chọn bộ sách đã tải —</option>'+list.map(g=>'<option value="'+E(g.name)+'">'+E(g.name)+'</option>').join('');
 }
 function library(){
  if(!keepTeacher())return;
- const collections=[...new Set(S.books.map(b=>String(b.group||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
- const collectionHints='<datalist id="existing-collections">'+collections.map(x=>'<option value="'+E(x)+'"></option>').join('')+'</datalist>';
- root.innerHTML='<div class="row between"><div><span class="eyebrow">CONTENT LIBRARY</span><h1>Giáo trình & ngân hàng câu hỏi</h1><p class="muted">Tổ chức theo Khối → Bộ sách → Unit / Bài học. Một bộ sách có thể sử dụng cho nhiều lớp.</p></div><span class="badge">'+S.books.length+' bài học · '+S.bank.length+' câu hỏi</span></div><div class="grid"><section class="panel"><h2>Thêm bài học vào thư viện</h2><form id="book-form" class="stack">'+field('Khối',input('grade',4,'number','min="1" max="12" required'))+field('Bộ sách / tên giáo trình',input('group','','text','list="existing-collections" placeholder="Chọn tên đã có hoặc nhập bộ sách mới" required maxlength="100"')+collectionHints+'<p class="notice">Gõ đúng tên bộ sách đã lưu để thêm Unit mới vào cùng một nhóm. Danh sách gợi ý giúp tránh tạo trùng bộ sách.</p>')+field('Unit / tên bài học',input('title','','text','placeholder="Ví dụ: Unit 3 – Daily Routines" required maxlength="150"'))+'<div class="field"><label>File TXT, MD, PDF hoặc DOCX</label><input id="book-file" type="file" accept=".txt,.md,.pdf,.docx"><p class="notice">Nội dung được trích xuất thành văn bản trên thiết bị; hình ảnh scan chưa được OCR.</p></div>'+field('Nội dung trích xuất / dán trực tiếp','<textarea name="text" id="book-text" rows="7" placeholder="Dán ngữ liệu của Unit / bài học ở đây..."></textarea>')+'<label class="chip"><input name="rights" type="checkbox" required> Tôi có quyền sử dụng tài liệu này và gửi nội dung cho AI nếu chọn tạo đề bằng AI</label><button class="primary" type="submit">Lưu bài học</button></form></section><section class="panel"><h2>Thư viện giáo trình</h2><p class="muted small">Mở hoặc thu gọn từng khối và bộ sách để xem danh sách Unit. Lớp 4A, 4B... sẽ được chọn riêng khi giao bài.</p><div class="textbook-tree">'+(S.books.length?textbookTree(S.books):'<p class="muted">Chưa có giáo trình. Hãy thêm một Unit bằng văn bản hoặc file.</p>')+'</div></section></div><section class="panel"><div class="row between"><div><h2>Ngân hàng câu hỏi</h2><p class="muted">Tạo câu hỏi thủ công theo một trong 7 khuôn mẫu, hoặc để AI đề xuất từ giáo trình.</p></div><button class="secondary" id="add-manual">+ Thêm câu hỏi</button></div><div class="grid3">'+(S.bank.length?S.bank.slice(0,30).map(q=>'<div class="card"><span class="pill">'+E(T(q.type))+'</span><p>'+E(q.prompt)+'</p></div>').join(''):'<p class="muted">Chưa có câu hỏi thủ công.</p>')+'</div></section>';
+ const total=textbookCatalog(S.books).length;
+ root.innerHTML='<div class="row between"><div><span class="eyebrow">CONTENT LIBRARY</span><h1>Giáo trình & ngân hàng câu hỏi</h1><p class="muted">Tải bộ sách một lần, đặt tên trước khi lưu. Sau đó chọn lại bộ sách để bổ sung các Unit.</p></div><span class="badge">'+total+' bộ sách · '+S.bank.length+' câu hỏi</span></div><div class="grid"><section class="panel"><h2>Quản lý bộ sách</h2><div class="library-mode" role="group" aria-label="Chọn thao tác với bộ sách"><button type="button" id="new-book-tab" class="secondary active" aria-pressed="true">1. Tải bộ sách mới</button><button type="button" id="existing-book-tab" class="secondary" aria-pressed="false">2. Bộ sách đã tải</button></div><div id="new-book-panel"><p class="hint">Chọn file, xem nội dung trích xuất, sửa tên bộ sách rồi mới nhấn Lưu. Sách mới sẽ xuất hiện trong thư viện bên phải.</p><form id="book-form" class="stack">'+field('Khối',input('grade',4,'number','min="1" max="12" required'))+field('File bộ sách (PDF, DOCX, TXT, MD)','<input type="file" id="new-book-file" accept=".pdf,.docx,.txt,.md" required><p class="notice">Bản demo lưu văn bản trích xuất, không lưu file gốc. PDF scan chưa hỗ trợ nhận dạng chữ (OCR).</p>')+field('Tên bộ sách – có thể sửa trước khi lưu',input('title','','text','placeholder="Ví dụ: Family and Friends 5" required maxlength="120"'))+field('Nội dung đọc từ file','<textarea name="text" id="new-book-text" rows="7" placeholder="Nội dung trích xuất sẽ xuất hiện ở đây. Kiểm tra lại trước khi lưu." required></textarea>')+'<label class="chip"><input name="rights" type="checkbox" required> Tôi có quyền sử dụng và gửi tài liệu này cho AI khi chọn tính năng AI</label><button class="primary" type="submit">Lưu bộ sách mới</button></form></div><div id="existing-book-panel" class="hidden"><p class="hint">Chọn bộ sách đã tải, không cần nhập lại tên. Các sách được phân theo khối và xếp tên theo thứ tự A–Z.</p><form id="unit-form" class="stack">'+field('Khối',input('grade',4,'number','id="existing-grade" min="1" max="12" required'))+field('Bộ sách đã tải','<select id="existing-book-select" name="group" required>'+catalogOptions(4)+'</select>')+field('Tên Unit / bài học cần thêm',input('title','','text','placeholder="Ví dụ: Unit 2 – My School" required maxlength="150"'))+field('File Unit / bài học','<input id="unit-file" type="file" accept=".pdf,.docx,.txt,.md"><p class="notice">Bạn có thể chọn file Unit hoặc dán văn bản.</p>')+field('Nội dung Unit','<textarea name="text" id="unit-text" rows="7" placeholder="Dán nội dung hoặc chọn file ở trên." required></textarea>')+'<label class="chip"><input name="rights" type="checkbox" required> Tôi có quyền sử dụng nội dung này</label><button class="primary" type="submit">Lưu Unit vào bộ sách đã chọn</button></form></div></section><section class="panel"><h2>Thư viện giáo trình</h2><p class="muted small">Khối tăng dần → tên bộ sách A–Z → Unit theo số thứ tự. Các Unit đã lưu trước đây vẫn được giữ lại.</p><div class="textbook-tree">'+(S.books.length?textbookTree(S.books):'<p class="muted">Chưa có bộ sách. Chọn “Tải bộ sách mới” để bắt đầu.</p>')+'</div></section></div><section class="panel"><div class="row between"><div><h2>Ngân hàng câu hỏi</h2><p class="muted">Tạo câu hỏi thủ công theo một trong 7 khuôn mẫu, hoặc để AI đề xuất từ giáo trình.</p></div><button class="secondary" id="add-manual">+ Thêm câu hỏi</button></div><div class="grid3">'+(S.bank.length?S.bank.slice(0,30).map(q=>'<div class="card"><span class="pill">'+E(T(q.type))+'</span><p>'+E(q.prompt)+'</p></div>').join(''):'<p class="muted">Chưa có câu hỏi thủ công.</p>')+'</div></section>';
 }
+function switchLibraryMode(kind){
+ const isNew=kind==='new';
+ $('#new-book-panel')?.classList.toggle('hidden',!isNew);
+ $('#existing-book-panel')?.classList.toggle('hidden',isNew);
+ const a=$('#new-book-tab'),b=$('#existing-book-tab');
+ a?.classList.toggle('active',isNew);b?.classList.toggle('active',!isNew);
+ a?.setAttribute('aria-pressed',String(isNew));b?.setAttribute('aria-pressed',String(!isNew));
+}
+
 function editor(q){
  const val=(x)=>E(q?.[x]??'');
  const type=q?.type||'select';
@@ -203,6 +220,8 @@ function bind(){
    if(btn.dataset.view){navigate(btn.dataset.view);return}
    if(btn.id==='demo-teacher'){S.teacher=true;S.user={email:'teacher@demo.local'};S.view='dashboard';await refresh();show('Đang dùng bản thử trong trình duyệt này. Chưa có đồng bộ đám mây hoặc AI.',true);return}
    if(btn.id==='logout'){if(!isPreview)await signOut(auth);S.teacher=false;S.user=null;S.books=[];S.bank=[];S.assignments=[];navigate('dashboard');return}
+   if(btn.id==='new-book-tab'){switchLibraryMode('new');return}
+   if(btn.id==='existing-book-tab'){switchLibraryMode('existing');return}
    if(btn.id==='add-manual'){S.editQuestion=null;document.body.insertAdjacentHTML('beforeend',editor());$('#type-fields').innerHTML=typeFields('select');return}
    if(btn.id==='close-editor'){document.querySelector('.overlay')?.remove();return}
    if(btn.id==='discard-preview'){S.preview=null;builder();return}
@@ -253,6 +272,7 @@ function bind(){
   }catch(err){show(err.message||String(err))}finally{if(btn.isConnected&&btn.id==='publish')btn.disabled=false}
  });
  document.addEventListener('change',e=>{
+  if(e.target.id==='existing-grade'){const select=$('#existing-book-select');if(select)select.innerHTML=catalogOptions(e.target.value);return}
   if(e.target.id==='manual-type'){$('#type-fields').innerHTML=typeFields(e.target.value);return}
   if(e.target.closest('.template-card'))e.target.closest('.template-card').classList.toggle('selected',e.target.checked);
   const i=e.target.dataset.answer;
@@ -269,11 +289,15 @@ function bind(){
     const d=new FormData(form);if(isPreview)throw Error('Đây là bản demo. Nhấn Dùng thử giáo viên để vào ứng dụng, không cần email.');await signInWithEmailAndPassword(auth,String(d.get('email')),String(d.get('password')));
     S.teacher=true;S.user=auth.currentUser;S.view='dashboard';await refresh();show('Đã đăng nhập giáo viên.',true);
    }
-   if(form.id==='book-form'){
+   if(form.id==='book-form'||form.id==='unit-form'){
     const d=new FormData(form),text=String(d.get('text')||'').trim();
-    if(!text)throw Error('Chọn file hoặc dán nội dung chương học.');
-    await api('book',{book:{title:d.get('title'),grade:d.get('grade'),group:String(d.get('group')||'').trim(),text}});
-    await refresh();show('Đã lưu giáo trình vào thư viện.',true);
+    if(!text)throw Error('Chọn file có văn bản hoặc dán nội dung trước khi lưu.');
+    if(form.id==='book-form'&&!$('#new-book-file')?.files?.length)throw Error('Bạn cần chọn file bộ sách mới trước khi lưu.');
+    const bookName=form.id==='book-form'?String(d.get('title')||'').trim():String(d.get('group')||'').trim();
+    if(!bookName)throw Error('Chưa chọn hoặc nhập tên bộ sách.');
+    if(form.id==='book-form'&&textbookCatalog(S.books).some(x=>x.grade===String(d.get('grade'))&&x.name.toLocaleLowerCase('vi')===bookName.toLocaleLowerCase('vi')))throw Error('Bộ sách này đã có. Hãy vào “Bộ sách đã tải” để thêm Unit.');
+    await api('book',{book:{title:d.get('title'),grade:d.get('grade'),group:bookName,kind:form.id==='book-form'?'book':'unit',originalFile:form.id==='book-form'?$('#new-book-file')?.files?.[0]?.name:$('#unit-file')?.files?.[0]?.name||'',text}});
+    await refresh();show(form.id==='book-form'?'Đã lưu bộ sách mới vào thư viện.':'Đã thêm Unit vào bộ sách.',true);
    }
    if(form.id==='manual-form'){
     const q=parseManual(form);
@@ -316,7 +340,25 @@ function bind(){
    }
   }catch(err){show(err.message||String(err))}finally{if(button?.isConnected)button.disabled=false}
  });
- const fileObserve=new MutationObserver(()=>{const upload=$('#book-file');if(upload&&!upload.dataset.bound){upload.dataset.bound='1';upload.addEventListener('change',async e=>{try{const txt=await parseFile(e.target.files[0]);if(txt.length>180000)throw Error('Trên 180.000 ký tự; hãy tách giáo trình thành nhiều chương.');$('#book-text').value=txt;show('Đã trích xuất '+txt.length+' ký tự; kiểm tra lại nội dung trước khi lưu.',true)}catch(err){show(err.message)}})}});
+ const fileObserve=new MutationObserver(()=>{
+  const inputs=[['new-book-file','new-book-text',true],['unit-file','unit-text',false]];
+  for(const [fileId,textId,isBook] of inputs){
+   const el=$('#'+fileId);
+   if(!el||el.dataset.bound)continue;
+   el.dataset.bound='1';
+   el.addEventListener('change',async e=>{
+    try{
+     const file=e.target.files?.[0];if(!file)return;
+     const content=await parseFile(file);
+     if(content.length>180000)throw Error('Tài liệu vượt giới hạn 180.000 ký tự. Vui lòng tách thành các chương.');
+     if(!content.trim())throw Error('Không trích xuất được chữ. PDF dạng ảnh scan chưa được hỗ trợ.');
+     $('#'+textId).value=content;
+     if(isBook){const title=$('#book-form [name="title"]');if(title&&!title.value.trim())title.value=file.name.replace(/\\.[^.]+$/,'').replace(/[_-]+/g,' ').trim();}
+     show('Đã đọc '+content.length+' ký tự từ file. Hãy kiểm tra và sửa tên trước khi lưu.',true);
+    }catch(err){show(err.message||String(err))}
+   });
+  }
+ });
  fileObserve.observe(document.body,{childList:true,subtree:true});
 }
 onAuthStateChanged(auth,u=>{
