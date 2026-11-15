@@ -2,21 +2,21 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebas
 import { getAuth,signInAnonymously,signInWithEmailAndPassword,signOut,onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
 import { demoAction } from './demo-data.js?v=distinct-variants';
-import { initLanguage } from './languages.js?v=distinct-variants';
+import { initLanguage } from './languages.js?v=question-types';
 import { readTextbook } from './textbook-reader.js?v=ocr2';
 import { MAX_TEXTBOOK_FILE_MB, MAX_TEXTBOOK_TEXT_LENGTH, TEXTBOOK_TEXT_LIMIT_MESSAGE } from './textbook-limits.js';
-import { openExportDialog,closeExportDialog,runExport } from './exporter.js';
+import { openExportDialog,closeExportDialog,runExport } from './exporter.js?v=question-types';
 const isPreview=location.hostname.endsWith('github.io')||location.hostname==='localhost';
 const $=s=>document.querySelector(s),root=$('#content'),alertBox=$('#alert');
 const fb=initializeApp(firebaseConfig),auth=getAuth(fb);
 const TEMPLATES=[
-{id:'select',label:'Single / Multi-Select',desc:'ABCD · Phát âm · Trọng âm · Đúng/Sai/Không đề cập'},
-{id:'cloze',label:'Inline Input / Cloze',desc:'Điền từ · Chia động từ · Word Form · Nghe điền từ'},
-{id:'matching',label:'Drag & Drop / Matching',desc:'Nối từ · Ghép tiêu đề · Ngân hàng từ · Dán nhãn'},
-{id:'ordering',label:'Ordering / Sequencing',desc:'Sắp xếp từ · Sắp xếp đoạn văn'},
-{id:'short',label:'Short / Exact Text',desc:'Viết lại câu · Chép chính tả · Trả lời ngắn · Regex'},
-{id:'essay',label:'Rich Text / Essay',desc:'Viết thư · Viết luận · Giáo viên duyệt'},
-{id:'audio',label:'Audio Recorder',desc:'Đọc to · Trả lời nói · Giáo viên nghe và chấm'}
+{id:'select',label:"Multiple Choice",desc:"Choose one or more answers"},
+{id:'cloze',label:"Fill in the Blanks",desc:"Complete sentences with the missing words"},
+{id:'matching',label:"Matching",desc:"Match words"},
+{id:'ordering',label:"Put in Order",desc:"Put words, sentences, or paragraphs in the correct order"},
+{id:'short',label:"Short Answers",desc:"Type a short answer or rewrite a sentence."},
+{id:'essay',label:"Writing",desc:"Write an answer."},
+{id:'audio',label:"Speaking",desc:"Read aloud"}
 ];
 const S={view:'dashboard',user:null,teacher:false,books:[],bank:[],assignments:[],preview:null,published:null,
 config:{grade:4,className:'',group:'',topic:'',count:30,variants:10,students:10,attempts:2,minutes:45,pass:60,good:85,types:['select','cloze','ordering','short'],useAI:false,bookIds:[]},
@@ -135,7 +135,7 @@ function reports(){
 function reportDetails(d){
  const list=$('#report-details');if(!list)return;
  const rows=d.rows||[];
- list.innerHTML='<section class="panel"><h2>'+E(d.title)+' – Chi tiết nộp bài</h2><div class="row"><span class="pill">Tổng lượt: '+rows.length+'</span><span class="pill">Đạt trở lên: '+rows.filter(x=>!x.pending&&x.percent>=d.config.pass).length+'</span><span class="pill">Cần chấm tay: '+rows.filter(x=>x.pending).length+'</span></div><div class="divider"></div><table><thead><tr><th>Học sinh</th><th>Phiên bản đề</th><th>Điểm tự động</th><th>Đánh giá</th><th>Nộp lúc</th><th>Chấm</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+E(r.name)+'</td><td class="code">'+E(Number.isInteger(r.variant)?r.variant+1:r.code)+'</td><td>'+E(r.percent)+' / 100</td><td>'+E(r.status)+'</td><td>'+date(r.submittedAt)+'</td><td>'+(r.pending?'<button class="secondary btn-sm" data-review="'+rows.indexOf(r)+'">Chấm bài</button>':'<span class="success">Đã hoàn tất</span>')+'</td></tr>').join('')+'</tbody></table></section>';
+ list.innerHTML='<section class="panel"><h2>'+E(d.title)+' – <span>Chi tiết nộp bài</span></h2><div class="row"><span class="pill">Tổng lượt: '+rows.length+'</span><span class="pill">Đạt trở lên: '+rows.filter(x=>!x.pending&&x.percent>=d.config.pass).length+'</span><span class="pill">Cần chấm tay: '+rows.filter(x=>x.pending).length+'</span></div><div class="divider"></div><table><thead><tr><th>Học sinh</th><th>Phiên bản đề</th><th>Điểm tự động</th><th>Đánh giá</th><th>Nộp lúc</th><th>Chấm</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+E(r.name)+'</td><td class="code">'+E(Number.isInteger(r.variant)?r.variant+1:r.code)+'</td><td>'+E(r.percent)+' / 100</td><td>'+E(r.status)+'</td><td>'+date(r.submittedAt)+'</td><td>'+(r.pending?'<button class="secondary btn-sm" data-review="'+rows.indexOf(r)+'">Chấm bài</button>':'<span class="success">Đã hoàn tất</span>')+'</td></tr>').join('')+'</tbody></table></section>';
 }
 function student(){
  const params=new URLSearchParams(location.search);
@@ -318,7 +318,7 @@ function bind(){
     const row=S.activeReport?.rows?.[Number(btn.dataset.review)];
     if(!row)throw Error('Không tìm thấy bài cần chấm.');
     const questions=row.questions||[];
-    document.body.insertAdjacentHTML('beforeend','<div class="overlay"><section class="panel modal"><div class="row between"><h2>Chấm bài: '+E(row.name)+'</h2><button type="button" class="ghost" id="close-review">Đóng ✕</button></div><form id="review-form" data-uid="'+E(row.uid)+'" data-attempt="'+E(row.attempt)+'" class="stack">'+questions.map((q,i)=>{
+    document.body.insertAdjacentHTML('beforeend','<div class="overlay"><section class="panel modal"><div class="row between"><h2><span>Chấm bài</span>: '+E(row.name)+'</h2><button type="button" class="ghost" id="close-review">Đóng ✕</button></div><form id="review-form" data-uid="'+E(row.uid)+'" data-attempt="'+E(row.attempt)+'" class="stack">'+questions.map((q,i)=>{
      if(!['essay','audio'].includes(q.type))return '';
      const answer=row.answers?.[i];
      return '<div class="question"><span class="pill">Câu '+(i+1)+' · '+E(T(q.type))+'</span><h3>'+E(q.prompt)+'</h3>'+(q.type==='essay'?'<div class="context">'+E(answer||'Chưa trả lời')+'</div>':'<button type="button" class="secondary btn-sm" data-listen="'+i+'" data-review-uid="'+E(row.uid)+'" data-review-attempt="'+E(row.attempt)+'">Nghe bài nói</button><div id="audio-review-'+i+'"></div>')+field('Điểm câu này (0–100)',input('manual-'+i,row.manualScores?.[i]??0,'number','min="0" max="100" required'))+'</div>';

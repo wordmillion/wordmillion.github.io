@@ -36,6 +36,36 @@ Object.assign(DICT,{
  'Văn bản giáo trình quá lớn để lưu trực tuyến.':{en:'The textbook text is too large to save online.',zh:'教材文字過大，無法線上儲存。'},
  'Trình duyệt không còn đủ dung lượng để lưu giáo trình.':{en:'The browser has insufficient storage for this textbook.',zh:'瀏覽器儲存空間不足，無法儲存此教材。'}
 });
+Object.assign(DICT,{
+ "1. Lớp học & nguồn bài tập":{en:"1. Class and assignment materials",zh:"1. 班級與作業素材"},
+ "2. Chọn dạng bài":{en:"2. Choose question types",zh:"2. 選擇題型"},
+ "3. Quy mô giao bài & đánh giá":{en:"3. Assignment settings and grading",zh:"3. 作業設定與評分"},
+ "4. Phương thức xây dựng đề":{en:"4. Question sources",zh:"4. 題目來源"},
+ "5. Duyệt bộ đề trước khi giao":{en:"5. Review before publishing",zh:"5. 發布前審閱"},
+ "7 khuôn mẫu":{en:"7 question types",zh:"7 種題型"},
+ "Khuôn mẫu":{en:"Question type",zh:"題型"},
+ "Một bài tập có thể có nhiều phiên bản đề. Giáo viên duyệt câu hỏi AI trước khi giao.":{en:"An assignment can have multiple versions. Teachers review AI-generated questions before publishing.",zh:"一份作業可有多個版本。教師會在發布前審閱 AI 生成的題目。"},
+ "Có thể để trống. Khi nhập chủ đề, AI sẽ dùng để định hướng câu hỏi; giáo viên vẫn cần kiểm tra đề.":{en:"You can leave this blank. AI uses the topic to guide question generation. Teachers still review the draft.",zh:"此欄可留空。AI 會依主題出題，教師仍須審閱草稿。"},
+ "Chưa tải giáo trình. Bạn có thể sử dụng ngân hàng câu hỏi trước.":{en:"No textbook uploaded yet. You can use the question bank.",zh:"尚未上傳教材。您可以先使用題庫。"},
+ "Đoạn đọc, hình ảnh, audio và video là Context Blocks dùng chung cho các câu hỏi bên trong; không tạo khuôn mẫu thứ tám.":{en:"A reading passage, image, audio clip, or video can be shared across questions as a context block.",zh:"閱讀文章、圖片、音訊或影片可作為多道題目共用的素材。"},
+ "Ví dụ: dưới 60 = Không đạt; từ 60 đến dưới 85 = Đạt; từ 85 đến 100 = Tốt. Mỗi mã đề có thể dùng cho nhiều học sinh.":{en:"Example: Below 60 is Fail, 60 to under 85 is Pass, and 85 to 100 is Good. Students can share a version.",zh:"例如，低於 60 分為未通過，60 至未滿 85 分為通過，85 至 100 分為良好。多位學生可使用同一個版本。"},
+ "AI hỗ trợ:":{en:"AI-assisted:",zh:"AI 輔助："},
+ "sử dụng giáo trình + ngân hàng, sau đó giáo viên kiểm tra nội dung.":{en:"Use textbooks and the question bank. Teachers review the draft.",zh:"使用教材和題庫，草稿由教師審閱。"},
+ "Chỉ dùng ngân hàng câu hỏi:":{en:"Question bank only:",zh:"僅使用題庫："},
+ "trộn câu hỏi và hoán đổi đáp án.":{en:"Shuffle questions and answer choices.",zh:"隨機排列題目與選項。"},
+ "AI có thể tạo câu sai hoặc vượt trình độ. Kiểm tra từng đáp án, đặc biệt trước khi gửi cho học sinh. Bạn có thể sửa trực tiếp cấu trúc câu hỏi bên dưới.":{en:"Review each question for accuracy and difficulty before sharing. You can edit individual questions below.",zh:"分享給學生前，請確認每題的正確性與難度。您可以在下方逐題編輯。"},
+ "Xem kết quả":{en:"View results",zh:"查看結果"},
+ "Giao bài mới":{en:"Assign new homework",zh:"指派新作業"},
+ "Chấm":{en:"Grading",zh:"評分"},
+ "Đã hoàn tất":{en:"Completed",zh:"已完成"},
+ "Kết hợp thành nhiều dạng bài tiếng Anh.":{en:"Combine different types of English exercises.",zh:"搭配不同類型的英語練習。"},
+ "Theo dõi kết quả theo từng phiên bản đề.":{en:"Track results by assignment version.",zh:"依作業版本追蹤結果。"},
+ "Chưa có nội dung.":{en:"No content yet.",zh:"尚無內容。"},
+ "Đăng nhập →":{en:"Sign in →",zh:"登入 →"},
+ "Mật khẩu":{en:"Password",zh:"密碼"},
+ "Bản ghi quá lớn. Hãy ghi ngắn hơn.":{en:"The recording is too large. Record a shorter response.",zh:"錄音檔過大。請縮短錄音時間。"},
+ "Đã tạo bản nháp. Kiểm tra câu hỏi trước khi phát hành.":{en:"Draft created. Review the questions before publishing.",zh:"已建立草稿。發布前請審閱題目。"}
+});
 const known=new Set(Object.keys(DICT));
 const raw=new WeakMap(),last=new WeakMap();
 const langKey='ai-homework-studio-language';

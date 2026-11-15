@@ -32,7 +32,7 @@ function loadScript(src){
   const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(new Error('Không tải được thư viện: '+src));document.head.append(s);
  });
 }
-const lab={select:'Multiple choice',cloze:'Fill in the blanks',matching:'Matching',ordering:'Ordering',short:'Short answer',essay:'Essay writing',audio:'Speaking'};
+const lab={select:"Multiple Choice",cloze:"Fill in the Blanks",matching:"Matching",ordering:"Put in Order",short:"Short Answers",essay:"Writing",audio:"Speaking"};
 const letters='ABCDEFGH';
 function qAnswer(q){
  switch(q.type){
