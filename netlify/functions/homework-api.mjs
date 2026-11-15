@@ -145,6 +145,12 @@ async function teacherAction(action,data,u,db){
   await db.ref().update(patch);
   return json({id,codes});
  }
+ if(action==='exportAssignment'){
+   const id=clip(data.id,100);
+   const a=(await root.child('assignments/'+id).once('value')).val();
+   if(!a)return fail('Không tìm thấy bài tập.',404);
+   return json({title:a.title,config:a.config,variants:a.variants});
+ }
  if(action==='report'){
   const id=clip(data.id,100);const assignment=(await root.child('assignments/'+id).once('value')).val();
   if(!assignment)return fail('Không tìm thấy bài tập.',404);
@@ -260,7 +266,7 @@ export default async function handler(req){
   const len=Number(req.headers.get('content-length')||0);if(len>1050000)return fail('Dữ liệu quá lớn.',413);
   const {action,...data}=await req.json();
   const {auth,db}=admin();const u=await userOf(req,auth);
-  if(['state','book','bank','generate','publish','report','review','audioLink'].includes(action))return teacherAction(action,data,u,db);
+  if(['state','book','bank','generate','publish','report','review','audioLink','exportAssignment'].includes(action))return teacherAction(action,data,u,db);
   if(['open','submit','uploadAudio'].includes(action))return studentAction(action,data,u,db);
   return fail('Tác vụ không hợp lệ.');
  }catch(e){console.error('WordMillion function:',e.message);return fail(e.message||'Lỗi máy chủ.',500)}
