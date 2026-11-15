@@ -2,6 +2,7 @@ import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getDatabase } from 'firebase-admin/database';
 import { randomBytes } from 'node:crypto';
+import { MAX_TEXTBOOK_TEXT_LENGTH, TEXTBOOK_TEXT_LIMIT_MESSAGE } from '../../homework/textbook-limits.js';
 
 const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const fail=(msg,status=400)=>json({error:msg},status);
@@ -96,8 +97,9 @@ async function teacherAction(action,data,u,db){
   return json({books:Object.entries(r.books||{}).map(([id,v])=>({id,...v,text:clip(v.text,250)})),bank:Object.entries(r.bank||{}).map(([id,v])=>({id,...v})),assignments:Object.entries(r.assignments||{}).map(([id,v])=>({id,title:v.title,codes:v.codes,config:v.config,status:v.status,createdAt:v.createdAt}))});
  }
  if(action==='book'){
-  const b=data.book||{};if(!clip(b.title,120).trim()||!clip(b.text,180000).trim())return fail('Thiếu tên hoặc nội dung giáo trình.');
-  if(String(b.text).length>180000)return fail('Giáo trình vượt giới hạn 180.000 ký tự. Hãy tách thành từng chương.');
+  const b=data.book||{};
+  if(!clip(b.title,120).trim()||typeof b.text!=='string'||!b.text.trim())return fail('Thiếu tên hoặc nội dung giáo trình.');
+  if(b.text.length>MAX_TEXTBOOK_TEXT_LENGTH)return fail(TEXTBOOK_TEXT_LIMIT_MESSAGE);
   const id=root.child('books').push().key;
   await root.child('books/'+id).set({title:clip(b.title,120),grade:clip(b.grade,10),className:clip(b.className,40),group:clip(b.group||b.title,120),kind:b.kind==='book'?'book':'unit',originalFile:clip(b.originalFile,160),text:b.text,updatedAt:Date.now()});
   return json({id});

@@ -1,4 +1,6 @@
 /* Local-only demo data; no AI generation, authentication, shared storage, or security guarantees. */
+import { listDemoTextbooks, saveDemoTextbook } from './demo-textbooks.js';
+
 const STORE='wordmillion-homework-preview-v2';
 const words=[['apple','quả táo'],['school','trường học'],['teacher','giáo viên'],['library','thư viện'],['family','gia đình'],['friend','bạn bè'],['market','chợ'],['hospital','bệnh viện'],['breakfast','bữa sáng'],['weather','thời tiết'],['garden','khu vườn'],['music','âm nhạc'],['language','ngôn ngữ'],['holiday','kỳ nghỉ'],['beautiful','đẹp'],['important','quan trọng'],['healthy','khỏe mạnh'],['exercise','bài tập'],['usually','thường xuyên'],['favorite','yêu thích']];
 const questions=()=>[
@@ -12,7 +14,7 @@ const questions=()=>[
 ];
 function initial(){return{books:{},bank:Object.fromEntries(questions().map(q=>[q.id,q])),assignments:{},codes:{},attempts:{},presets:{}}}
 function db(){try{return JSON.parse(localStorage.getItem(STORE))||initial()}catch{return initial()}}
-function save(d){try{localStorage.setItem(STORE,JSON.stringify(d))}catch{throw Error('Bộ nhớ trình duyệt đã đầy. Thử tách giáo trình thành các chương nhỏ.')}return d}
+function save(d){try{localStorage.setItem(STORE,JSON.stringify(d))}catch{throw Error('Bộ nhớ trình duyệt đã đầy.')}return d}
 const err=(s)=>{throw Error(s)};
 const escapeKey=(v)=>String(v??'').slice(0,120);
 const seed=(a)=>{const b=[...a];for(let i=b.length-1;i>0;i--){const j=crypto.getRandomValues(new Uint32Array(1))[0]%(i+1);[b[i],b[j]]=[b[j],b[i]]}return b};
@@ -36,10 +38,10 @@ function sanitize(q){
 }
 export async function demoAction(action,req={}){
  const d=db();
- if(action==='state')return{books:Object.entries(d.books).map(([id,b])=>({id,...b,text:(b.text||'').slice(0,150)})),bank:Object.entries(d.bank).map(([id,q])=>({id,...q})),assignments:Object.entries(d.assignments).map(([id,a])=>({id,title:a.title,codes:a.codes,config:a.config,createdAt:a.createdAt,status:'published'}))};
+ if(action==='state')return{books:[...Object.entries(d.books||{}).map(([id,b])=>({id,...b,text:(b.text||'').slice(0,150)})),...await listDemoTextbooks()],bank:Object.entries(d.bank).map(([id,q])=>({id,...q})),assignments:Object.entries(d.assignments).map(([id,a])=>({id,title:a.title,codes:a.codes,config:a.config,createdAt:a.createdAt,status:'published'}))};
  if(action==='book'){
   const b=req.book||{};if(!b.title||!b.text)err('Cần tên sách và nội dung.');
-  const key=id();d.books[key]={...b,updatedAt:Date.now()};save(d);return{id:key};
+  const key=id();await saveDemoTextbook(key,{...b,updatedAt:Date.now()});return{id:key};
  }
  if(action==='bank'){
   const qs=(req.questions||[]);if(!qs.length||qs.some(q=>!q.prompt||!q.type))err('Câu hỏi chưa đầy đủ.');
