@@ -20,3 +20,12 @@ details[open]>summary>.folder-icon{transform:rotate(90deg)}
 .book-symbol{color:var(--gold);font-size:17px}
 .textbook-unit strong{overflow-wrap:anywhere}
 .textbook-unit .legacy-class{font-style:italic}
+
+/* Textbook upload workflow */
+.library-mode{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0 20px}
+.library-mode .secondary{flex:1;min-width:185px;text-align:center}
+.library-mode .secondary.active{background:#334f80;color:#ffe0a1;border-color:#e3b654;box-shadow:inset 0 -2px 0 #e3b654}
+.library-mode button[aria-pressed="true"]{font-weight:800}
+#new-book-panel .field,#existing-book-panel .field{margin-bottom:12px}
+#new-book-file,#unit-file{padding:10px;background:#1b3056}
+.textbook-tree details summary:focus-visible{outline:2px solid #ffdf90;outline-offset:3px}
