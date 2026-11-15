@@ -66,6 +66,10 @@ Object.assign(DICT,{
  "Bản ghi quá lớn. Hãy ghi ngắn hơn.":{en:"The recording is too large. Record a shorter response.",zh:"錄音檔過大。請縮短錄音時間。"},
  "Đã tạo bản nháp. Kiểm tra câu hỏi trước khi phát hành.":{en:"Draft created. Review the questions before publishing.",zh:"已建立草稿。發布前請審閱題目。"}
 });
+Object.assign(DICT,{
+ 'Mở đường dẫn bài tập giáo viên đã gửi để bắt đầu.':{en:'Open the homework link your teacher shared to get started.',zh:'請開啟老師分享的作業連結以開始作答。'},
+ 'Quay lại trang bài tập':{en:'Back to homework',zh:'返回作業頁面'}
+});
 const known=new Set(Object.keys(DICT));
 const raw=new WeakMap(),last=new WeakMap();
 const langKey='ai-homework-studio-language';

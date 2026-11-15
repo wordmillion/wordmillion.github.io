@@ -2,7 +2,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebas
 import { getAuth,signInAnonymously,signInWithEmailAndPassword,signOut,onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
 import { demoAction } from './demo-data.js?v=distinct-variants';
-import { initLanguage } from './languages.js?v=question-types';
+import { initLanguage } from './languages.js?v=student-link';
 import { readTextbook } from './textbook-reader.js?v=ocr2';
 import { MAX_TEXTBOOK_FILE_MB, MAX_TEXTBOOK_TEXT_LENGTH, TEXTBOOK_TEXT_LIMIT_MESSAGE } from './textbook-limits.js';
 import { openExportDialog,closeExportDialog,runExport } from './exporter.js?v=question-types';
@@ -137,21 +137,34 @@ function reportDetails(d){
  const rows=d.rows||[];
  list.innerHTML='<section class="panel"><h2>'+E(d.title)+' – <span>Chi tiết nộp bài</span></h2><div class="row"><span class="pill">Tổng lượt: '+rows.length+'</span><span class="pill">Đạt trở lên: '+rows.filter(x=>!x.pending&&x.percent>=d.config.pass).length+'</span><span class="pill">Cần chấm tay: '+rows.filter(x=>x.pending).length+'</span></div><div class="divider"></div><table><thead><tr><th>Học sinh</th><th>Phiên bản đề</th><th>Điểm tự động</th><th>Đánh giá</th><th>Nộp lúc</th><th>Chấm</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+E(r.name)+'</td><td class="code">'+E(Number.isInteger(r.variant)?r.variant+1:r.code)+'</td><td>'+E(r.percent)+' / 100</td><td>'+E(r.status)+'</td><td>'+date(r.submittedAt)+'</td><td>'+(r.pending?'<button class="secondary btn-sm" data-review="'+rows.indexOf(r)+'">Chấm bài</button>':'<span class="success">Đã hoàn tất</span>')+'</td></tr>').join('')+'</tbody></table></section>';
 }
+const recentHomeworkKey='wordmillion-last-homework';
 function student(){
  const params=new URLSearchParams(location.search);
- const assignment=params.get('assignment');
- root.innerHTML='<div class="row between"><div><span class="eyebrow">STUDENT HOMEWORK</span><h1>Bài tập về nhà cần nộp</h1><h2 id="student-assignment-title" data-no-translate hidden></h2><p class="muted">'+(assignment?'Nhập họ tên để bắt đầu. Hệ thống sẽ tự chọn đề cho bạn.':'Nhập mã bài tập và họ tên để bắt đầu.')+'</p></div></div><div class="panel" style="max-width:650px"><form id="student-open" class="stack">'+(assignment?input('code',assignment,'hidden'):field('Mã bài tập',input('code',params.get('code')||'','text','required')))+field('Họ tên học sinh',input('name','','text','required minlength="2" maxlength="60"'))+'<button class="primary" type="submit">Bắt đầu làm bài →</button></form></div>';
- if(assignment)void showStudentAssignment(assignment,$('#student-assignment-title'));
+ const assignment=params.get('assignment')||params.get('code')||localStorage.getItem(recentHomeworkKey);
+ const intro='<h1>Bài tập về nhà cần nộp</h1>';
+ if(!assignment){
+  root.innerHTML='<section class="panel">'+intro+'<p class="muted">Mở đường dẫn bài tập giáo viên đã gửi để bắt đầu.</p></section>';
+  return;
+ }
+ root.innerHTML='<div class="row between"><div>'+intro+'<h2 id="student-assignment-title" data-no-translate hidden></h2><p class="muted">Nhập họ tên để bắt đầu. Hệ thống sẽ tự chọn đề cho bạn.</p></div></div><div class="panel" style="max-width:650px"><form id="student-open" class="stack">'+input('code',assignment,'hidden')+field('Họ tên học sinh',input('name','','text','required minlength="2" maxlength="60"'))+'<button class="primary" type="submit" disabled>Bắt đầu làm bài →</button></form></div>';
+ void showStudentAssignment(assignment,$('#student-assignment-title'),$('#student-open button'));
 }
-async function showStudentAssignment(code,heading){
+async function showStudentAssignment(code,heading,button){
  try{
   if(!isPreview){
    await auth.authStateReady();
    if(!auth.currentUser)await studentAuth();
   }
   const {title}=await api('assignmentInfo',{code});
-  if(heading.isConnected){heading.textContent=title;heading.hidden=false;}
- }catch(err){if(heading.isConnected)show(err.message||String(err));}
+  if(heading.isConnected){
+   heading.textContent=title;
+   heading.hidden=false;
+   button.disabled=false;
+   localStorage.setItem(recentHomeworkKey,code);
+  }
+ }catch(err){
+  if(heading.isConnected)show(err.message||String(err));
+ }
 }
 function media(q){
  const ctx=q.context?'<div class="context">'+E(q.context)+'</div>':'';
@@ -186,7 +199,7 @@ function clock(){
 }
 function result(d){
  clearInterval(S.timer);S.student=null;
- root.innerHTML='<section class="panel" style="text-align:center;max-width:740px;margin:30px auto"><span class="eyebrow">HOMEWORK SUBMITTED</span><h1>Đã nộp bài</h1><div class="score">'+E(d.percent)+' / 100</div><h2>'+E(d.status)+'</h2><p class="muted">'+(d.pending?'Đây là điểm tự động tạm tính. Phần viết hoặc nói cần giáo viên chấm trước khi có kết quả cuối cùng.':'Kết quả được lưu trên máy chủ.')+'</p><button class="secondary" data-view="student">Về trang nhập mã</button></section>';
+ root.innerHTML='<section class="panel" style="text-align:center;max-width:740px;margin:30px auto"><span class="eyebrow">HOMEWORK SUBMITTED</span><h1>Đã nộp bài</h1><div class="score">'+E(d.percent)+' / 100</div><h2>'+E(d.status)+'</h2><p class="muted">'+(d.pending?'Đây là điểm tự động tạm tính. Phần viết hoặc nói cần giáo viên chấm trước khi có kết quả cuối cùng.':'Kết quả được lưu trên máy chủ.')+'</p><button class="secondary" data-view="student">Quay lại trang bài tập</button></section>';
 }
 function navigate(view){clear();S.view=view;clearInterval(S.timer);document.querySelectorAll('[data-view]').forEach(x=>{if(x.classList.contains('nav'))x.classList.toggle('active',x.dataset.view===view)});if(view==='login')root.innerHTML=login();if(view==='dashboard')dashboard();if(view==='library')library();if(view==='builder')builder();if(view==='reports')reports();if(view==='student')student();window.scrollTo({top:0,behavior:'smooth'});}
 async function refresh(){const d=await api('state');S.books=d.books||[];S.bank=d.bank||[];S.assignments=d.assignments||[];navigate(S.view)}
