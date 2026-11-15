@@ -26,13 +26,34 @@ export async function createTextbookOCR(){
   const initializing=tesseract.createWorker(['eng','vie'],1,{
    workerPath:TESSERACT_URL+'/worker.min.js',
    corePath:CDN+'/tesseract.js-core@6.0.0',
-   langPath:'https://tessdata.projectnaptha.com/4.0.0_fast',
+   cachePath:'wordmillion-textbook-ocr-best-int',
    errorHandler:rejectInitialization
   });
   return await Promise.race([initializing,initializationError]);
  }catch{
   throw Error('Không khởi động được công cụ OCR. Hãy kiểm tra kết nối và thử lại.');
  }
+}
+
+function readableLines(blocks){
+ const lines=blocks.flatMap(block=>block.paragraphs.flatMap(paragraph=>paragraph.lines));
+ return lines.flatMap(line=>{
+  const words=line.words.filter(word=>word.text);
+  const isText=word=>/[\p{L}]{2}|^(?:[AI]|[AB]:)$/iu.test(word.text);
+  const first=words.findIndex(word=>word.confidence>=68&&isText(word));
+  if(first<0)return [];
+  const last=words.findLastIndex(word=>word.confidence>=68&&isText(word));
+  const usable=words.slice(first,last+1);
+  let text=usable.map(word=>{
+   if(word.confidence>=50&&/[\p{L}\p{N}]/u.test(word.text))return word.text;
+   if(/^[_—–-]{2,}$/.test(word.text))return '_____';
+   return '';
+  }).filter(Boolean).join(' ');
+  if(last===first&&(!/^[\p{L}]{3,}[.!?]?$/u.test(text)||words[first].confidence<85))return [];
+  const number=words[first-1]?.text;
+  if(/^(?:[1-9]\.|[AB]:)$/.test(number||''))text=number+' '+text;
+  return [text];
+ }).join('\n');
 }
 
 export async function readScannedPage(page,worker){
@@ -44,8 +65,8 @@ export async function readScannedPage(page,worker){
  canvas.height=Math.ceil(viewport.height);
  try{
   await page.render({canvasContext:canvas.getContext('2d',{alpha:false}),viewport}).promise;
-  const {data:{text}}=await worker.recognize(canvas);
-  return text.trim();
+  const {data:{blocks}}=await worker.recognize(canvas,{}, {blocks:true});
+  return readableLines(blocks||[]);
  }finally{
   canvas.width=0;
   canvas.height=0;
