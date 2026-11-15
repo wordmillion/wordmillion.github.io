@@ -87,6 +87,10 @@ export async function demoAction(action,req={}){
   Object.assign(rec,{answers,grading,autoEarned:earned,total,percent,pending,status,submittedAt:Date.now()});
   save(d);return{percent,pending,status,autoEarned:earned,total};
  }
+ if(action==='exportAssignment'){
+  const a=d.assignments[req.id];if(!a)err('Không tìm thấy bài tập để xuất.');
+  return {title:a.title,config:a.config,variants:a.variants};
+ }
  if(action==='report'){
   const a=d.assignments[req.id];if(!a)err('Không tìm thấy bài tập.');
   const rows=Object.entries(d.attempts).flatMap(([k,rs])=>rs.filter(x=>x.submittedAt&&d.codes[x.code]?.assignment===req.id).map(x=>({...x,uid:k,attempt:x.id,questions:a.variants[x.variant].questions})));
