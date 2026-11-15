@@ -18,10 +18,7 @@ function save(d){try{localStorage.setItem(STORE,JSON.stringify(d))}catch{throw E
 const err=(s)=>{throw Error(s)};
 const escapeKey=(v)=>String(v??'').slice(0,120);
 const seed=(a)=>{const b=[...a];for(let i=b.length-1;i>0;i--){const j=crypto.getRandomValues(new Uint32Array(1))[0]%(i+1);[b[i],b[j]]=[b[j],b[i]]}return b};
-const rand=()=>Array.from(crypto.getRandomValues(new Uint8Array(4)),n=>'ABCDEFGHJKLMNPQRSTUVWXYZ'[n%24]).join('');
 const id=()=>crypto.randomUUID();
-const taipeiDate=()=>Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
-const fmtCode=(grade)=>{const x=taipeiDate();return x.year+x.day+x.month+String(grade).padStart(2,'0')+rand()};
 const normalize=v=>String(v??'').normalize('NFKC').trim().toLocaleLowerCase('en').replace(/\s+/g,' ');
 function equals(q,a){
  if(q.type==='select')return JSON.stringify([...(q.correct||[])].sort())===JSON.stringify([...(Array.isArray(a)?a:[a]).map(Number)].sort());
@@ -38,7 +35,7 @@ function sanitize(q){
 }
 export async function demoAction(action,req={}){
  const d=db();
- if(action==='state')return{books:[...Object.entries(d.books||{}).map(([id,b])=>({id,...b,text:(b.text||'').slice(0,150)})),...await listDemoTextbooks()],bank:Object.entries(d.bank).map(([id,q])=>({id,...q})),assignments:Object.entries(d.assignments).map(([id,a])=>({id,title:a.title,codes:a.codes,config:a.config,createdAt:a.createdAt,status:'published'}))};
+ if(action==='state')return{books:[...Object.entries(d.books||{}).map(([id,b])=>({id,...b,text:(b.text||'').slice(0,150)})),...await listDemoTextbooks()],bank:Object.entries(d.bank).map(([id,q])=>({id,...q})),assignments:Object.entries(d.assignments).map(([id,a])=>({id,title:a.title,code:a.code,codes:a.codes,config:a.config,createdAt:a.createdAt,status:'published'}))};
  if(action==='book'){
   const b=req.book||{};if(!b.title||!b.text)err('Cần tên sách và nội dung.');
   const key=id();await saveDemoTextbook(key,{...b,updatedAt:Date.now()});return{id:key};
@@ -60,27 +57,44 @@ export async function demoAction(action,req={}){
   const c=req.config||{},variants=req.variants||[];
   if(!variants.length||variants.length!==Number(c.variants))err('Số mã đề không hợp lệ.');
   if(!(Number(c.good)>Number(c.pass))||c.good>100||c.pass<0)err('Ngưỡng Tốt cần lớn hơn ngưỡng Đạt.');
-  const key=id(),codes=[];
-  variants.forEach((v,i)=>{let code=fmtCode(c.grade);while(d.codes[code])code=fmtCode(c.grade);codes.push(code);d.codes[code]={assignment:key,variant:i};});
-  d.assignments[key]={title:req.title||'Bài tập tiếng Anh',codes,variants,config:c,createdAt:Date.now()};
-  save(d);return{id:key,codes};
+  const key=id(),code=id().replaceAll('-','').slice(0,24).toUpperCase();
+  const title=String(req.title||'').trim().slice(0,120)||'Bài tập tiếng Anh';
+  d.codes[code]={assignment:key};
+  d.assignments[key]={title,code,variants,config:c,createdAt:Date.now()};
+  save(d);return{id:key,code,title};
+ }
+ if(action==='assignmentInfo'){
+  const m=d.codes[escapeKey(req.code).trim().toUpperCase()];
+  const a=m&&d.assignments[m.assignment];
+  if(!a)err('Không tìm thấy bài tập trên trình duyệt này.');
+  return {title:a.title};
  }
  if(action==='open'){
-  const code=escapeKey(req.code).toUpperCase(),m=d.codes[code];if(!m)err('Không tìm thấy mã đề trên trình duyệt này. Demo không đồng bộ giữa các thiết bị.');
+  const code=escapeKey(req.code).trim().toUpperCase(),m=d.codes[code];if(!m)err('Không tìm thấy mã đề trên trình duyệt này. Demo không đồng bộ giữa các thiết bị.');
   const a=d.assignments[m.assignment],name=escapeKey(req.name).trim();if(name.length<2)err('Nhập tên học sinh.');
   const user=name.toLocaleLowerCase('vi').replace(/\s+/g,'_');
   const key=m.assignment+'|'+user;d.attempts[key] ||= [];
-  const submitted=d.attempts[key].filter(x=>x.submittedAt);
-  let r=d.attempts[key].find(x=>x.code===code&&!x.submittedAt);
-  if(!r){if(submitted.length>=Number(a.config.attempts))err('Đã hết số lần làm bài.');r={id:id(),code,name,startedAt:Date.now(),variant:m.variant};d.attempts[key].push(r);save(d);}
-  return{assignment:a.title,config:{minutes:a.config.minutes,attempts:a.config.attempts,pass:a.config.pass,good:a.config.good},questions:a.variants[m.variant].questions.map(sanitize),attempt:r.id,remaining:Math.max(0,a.config.minutes*60-Math.floor((Date.now()-r.startedAt)/1000)),code};
+  const attempts=d.attempts[key],now=Date.now();
+  const shared=m.variant===undefined;
+  const expired=r=>now-r.startedAt>Number(a.config.minutes)*60000;
+  const used=attempts.filter(x=>x.submittedAt||(shared&&expired(x))).length;
+  let r=attempts.find(x=>x.code===code&&!x.submittedAt&&(!shared||!expired(x)));
+  if(!r){
+   if(used>=Number(a.config.attempts))err('Đã hết số lần làm bài.');
+   const prior=attempts.find(x=>x.code===code);
+   const variant=m.variant??prior?.variant??Math.floor(Math.random()*a.variants.length);
+   r={id:id(),code,name,startedAt:now,variant};
+   attempts.push(r);save(d);
+  }
+  return{assignment:a.title,config:{minutes:a.config.minutes,attempts:a.config.attempts,pass:a.config.pass,good:a.config.good},questions:a.variants[r.variant].questions.map(sanitize),attempt:r.id,remaining:Math.max(0,a.config.minutes*60-Math.floor((Date.now()-r.startedAt)/1000)),code};
  }
  if(action==='submit'){
-  const code=escapeKey(req.code).toUpperCase(),m=d.codes[code];if(!m)err('Mã đề không tồn tại.');
-  const a=d.assignments[m.assignment],variant=a.variants[m.variant];
+  const code=escapeKey(req.code).trim().toUpperCase(),m=d.codes[code];if(!m)err('Mã đề không tồn tại.');
+  const a=d.assignments[m.assignment];
   const records=Object.values(d.attempts).flat(),rec=records.find(x=>x.id===req.attempt&&x.code===code);
   if(!rec||rec.submittedAt)err('Lượt làm bài đã nộp hoặc không tồn tại.');
   if(Date.now()-rec.startedAt>Number(a.config.minutes)*60000+5000)err('Đã quá thời gian làm bài.');
+  const variant=a.variants[rec.variant];
   const answers=req.answers||[];
   const grading=variant.questions.map((q,i)=>({points:Number(q.points)||1,correct:equals(q,answers[i]),answer:answers[i]??null}));
   const earned=grading.reduce((n,r)=>n+(r.correct===true?r.points:0),0),total=grading.reduce((n,r)=>n+r.points,0);

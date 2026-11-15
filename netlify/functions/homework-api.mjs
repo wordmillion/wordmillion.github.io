@@ -1,7 +1,7 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getDatabase } from 'firebase-admin/database';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import { MAX_TEXTBOOK_TEXT_LENGTH, TEXTBOOK_TEXT_LIMIT_MESSAGE } from '../../homework/textbook-limits.js';
 
 const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
@@ -52,11 +52,6 @@ function versions(pool,count,num){
   return {index:k+1,questions};
  });
 }
-function makeCode(grade){
- const d=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(x=>[x.type,x.value]));const yy=d.year,dd=d.day,mm=d.month,g=String(grade).padStart(2,'0');
- const chars='ABCDEFGHJKLMNPQRSTUVWXYZ';
- return ''+yy+dd+mm+g+Array.from(randomBytes(4),n=>chars[n%chars.length]).join('');
-}
 function norm(v){return String(v??'').normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/\s+/g,' ')}
 function matchText(answer,accepted){
  const x=norm(answer);return (accepted||[]).some(s=>{
@@ -94,7 +89,7 @@ async function teacherAction(action,data,u,db){
  const root=db.ref('wm2/teachers/'+u.uid);
  if(action==='state'){
   const r=(await root.once('value')).val()||{};
-  return json({books:Object.entries(r.books||{}).map(([id,v])=>({id,...v,text:clip(v.text,250)})),bank:Object.entries(r.bank||{}).map(([id,v])=>({id,...v})),assignments:Object.entries(r.assignments||{}).map(([id,v])=>({id,title:v.title,codes:v.codes,config:v.config,status:v.status,createdAt:v.createdAt}))});
+  return json({books:Object.entries(r.books||{}).map(([id,v])=>({id,...v,text:clip(v.text,250)})),bank:Object.entries(r.bank||{}).map(([id,v])=>({id,...v})),assignments:Object.entries(r.assignments||{}).map(([id,v])=>({id,title:v.title,code:v.code,codes:v.codes,config:v.config,status:v.status,createdAt:v.createdAt}))});
  }
  if(action==='book'){
   const b=data.book||{};
@@ -136,16 +131,14 @@ async function teacherAction(action,data,u,db){
   const variants=(data.variants||[]).slice(0,100);
   if(!variants.length||variants.length!==config.variants||variants.some(v=>!Array.isArray(v.questions)||v.questions.length!==config.count||v.questions.some(q=>!validateQuestion(q))))return fail('Số lượng đề, câu hỏi hoặc đáp án không hợp lệ.');
   const id=root.child('assignments').push().key;
-  const codes=[];const patch={};const batchCodes=new Set();
-  for(let i=0;i<variants.length;i++){
-   let code=makeCode(config.grade),n=0;
-   while((batchCodes.has(code)||(await db.ref('wm2/codes/'+code).once('value')).exists())&&n++<15)code=makeCode(config.grade);if(batchCodes.has(code))throw Error('Không thể tạo mã đề duy nhất.');batchCodes.add(code);
-   codes.push(code);patch['wm2/codes/'+code]={owner:u.uid,assignment:id,variant:i};
-  }
-  const assignment={title:clip(data.title,120)||'Bài tập tiếng Anh',config,codes,variants,createdAt:Date.now(),status:'published'};
-  patch['wm2/teachers/'+u.uid+'/assignments/'+id]=assignment;
-  await db.ref().update(patch);
-  return json({id,codes});
+  const code=randomBytes(12).toString('hex').toUpperCase();
+  const title=clip(data.title,120).trim()||'Bài tập tiếng Anh';
+  const assignment={title,config,code,variants,createdAt:Date.now(),status:'published'};
+  await db.ref().update({
+   ['wm2/codes/'+code]:{owner:u.uid,assignment:id},
+   ['wm2/teachers/'+u.uid+'/assignments/'+id]:assignment
+  });
+  return json({id,code,title});
  }
  if(action==='exportAssignment'){
    const id=clip(data.id,100);
@@ -195,26 +188,38 @@ async function teacherAction(action,data,u,db){
 }
 async function studentAction(action,data,u,db){
  const code=clip(data.code,32).toUpperCase().trim();
- if(!/^\d{10}[A-Z]{4}$/.test(code))return fail('Mã bài tập không đúng cấu trúc.');
+ if(!/^(?:\d{10}[A-Z]{4}|[0-9A-F]{24})$/.test(code))return fail('Mã bài tập không đúng cấu trúc.');
  const mapped=(await db.ref('wm2/codes/'+code).once('value')).val();
  if(!mapped)return fail('Không tìm thấy mã bài tập.',404);
  const a=(await db.ref('wm2/teachers/'+mapped.owner+'/assignments/'+mapped.assignment).once('value')).val();
  if(!a||a.status!=='published')return fail('Bài tập không còn khả dụng.',404);
- const variant=a.variants?.[mapped.variant];if(!variant)return fail('Không tìm thấy đề.',404);
+ if(action==='assignmentInfo')return json({title:a.title});
  const name=clip(data.name,60).trim();
  const base=db.ref('wm2/attempts/'+mapped.assignment+'/'+u.uid);
  if(action==='open'){
-  const old=(await base.once('value')).val()||{};
-  let active=Object.entries(old).filter(([key,v])=>key!=='name'&&v.code===code&&!v.submittedAt).sort((x,y)=>y[1].startedAt-x[1].startedAt)[0];
-  let key=active?.[0],rec=active?.[1];
-  const used=Object.values(old).filter(v=>v&&typeof v==='object'&&v.submittedAt).length;
-  if(!rec&&used>=a.config.attempts)return fail('Bạn đã dùng hết số lần làm bài.');
-  if(!rec){
-   if(name.length<2)return fail('Nhập tên học sinh để bắt đầu.');
-   key=base.push().key;rec={code,name,startedAt:Date.now(),variant:mapped.variant};
-   await base.child(key).set(rec);
-   await base.child('name').set(name);
-  }
+  const now=Date.now();
+  const nextKey=base.push().key;
+  const randomVariant=randomInt(a.variants.length);
+  let key,reason;
+  const opened=await base.transaction(previous=>{
+   const old=previous||{};
+   const attempts=Object.entries(old).filter(([k,v])=>k!=='name'&&v&&typeof v==='object');
+   const expired=r=>now-r.startedAt>Number(a.config.minutes)*60000;
+   const shared=mapped.variant===undefined;
+   const active=attempts.filter(([,v])=>v.code===code&&!v.submittedAt&&(!shared||!expired(v))).sort((x,y)=>y[1].startedAt-x[1].startedAt)[0];
+   if(active){key=active[0];return old;}
+   const used=attempts.filter(([,v])=>v.submittedAt||(shared&&expired(v))).length;
+   if(used>=a.config.attempts){reason='Bạn đã dùng hết số lần làm bài.';return;}
+   if(name.length<2){reason='Nhập tên học sinh để bắt đầu.';return;}
+   const prior=attempts.find(([,v])=>v.code===code)?.[1];
+   const variant=mapped.variant??prior?.variant??randomVariant;
+   key=nextKey;
+   return {...old,name,[key]:{code,name,startedAt:now,variant}};
+  },undefined,false);
+  if(!opened.committed)return fail(reason||'Không thể mở bài tập. Hãy thử lại.');
+  const rec=opened.snapshot.child(key).val();
+  const variant=a.variants?.[rec.variant];
+  if(!variant)return fail('Không tìm thấy đề.',404);
   const remaining=Math.max(0,a.config.minutes*60-Math.floor((Date.now()-rec.startedAt)/1000));
   return json({assignment:a.title,config:{minutes:a.config.minutes,attempts:a.config.attempts,pass:a.config.pass,good:a.config.good},questions:variant.questions.map(safeQuestion),attempt:key,remaining,code});
  }
@@ -223,7 +228,8 @@ async function studentAction(action,data,u,db){
   const ref=db.ref('wm2/attempts/'+mapped.assignment+'/'+u.uid+'/'+attempt);
   const rec=(await ref.once('value')).val();
   if(!rec||rec.code!==code||rec.submittedAt)return fail('Lượt làm bài không hợp lệ.',403);
-  if(!Number.isInteger(index)||variant.questions[index]?.type!=='audio')return fail('Không phải câu hỏi nói.');
+  const variant=a.variants?.[rec.variant];
+  if(!Number.isInteger(index)||variant?.questions[index]?.type!=='audio')return fail('Không phải câu hỏi nói.');
   if(Date.now()-rec.startedAt>a.config.minutes*60000+5000)return fail('Đã quá giờ.');
   const value=String(data.dataUrl||''),m=/^data:(audio\/(?:webm|ogg|mp4|mpeg));base64,([A-Za-z0-9+/=]+)$/.exec(value);
   if(!m||value.length>1900000)return fail('Bản ghi không hợp lệ hoặc vượt giới hạn 1,4 MB.');
@@ -244,6 +250,8 @@ async function studentAction(action,data,u,db){
   if(!record||record.code!==code)return fail('Không tìm thấy lượt làm bài.',404);
   if(record.submittedAt)return fail('Bài này đã được nộp.',409);
   if(Date.now()-record.startedAt>a.config.minutes*60000+5000)return fail('Đã quá thời hạn nộp bài.');
+  const variant=a.variants?.[record.variant];
+  if(!variant)return fail('Không tìm thấy đề.',404);
   const answers=Array.isArray(data.answers)?data.answers:[];
   for(let i=0;i<variant.questions.length;i++){
    if(variant.questions[i].type==='audio'){
@@ -269,7 +277,7 @@ export default async function handler(req){
   const {action,...data}=await req.json();
   const {auth,db}=admin();const u=await userOf(req,auth);
   if(['state','book','bank','generate','publish','report','review','audioLink','exportAssignment'].includes(action))return teacherAction(action,data,u,db);
-  if(['open','submit','uploadAudio'].includes(action))return studentAction(action,data,u,db);
+  if(['assignmentInfo','open','submit','uploadAudio'].includes(action))return studentAction(action,data,u,db);
   return fail('Tác vụ không hợp lệ.');
  }catch(e){console.error('WordMillion function:',e.message);return fail(e.message||'Lỗi máy chủ.',500)}
 }
