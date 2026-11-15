@@ -191,7 +191,8 @@ async function parseFile(file){
   const pdfjs=await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.mjs');
   pdfjs.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
   const doc=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
-  const chunks=[];for(let i=1;i<=Math.min(doc.numPages,50);i++){const p=await doc.getPage(i),t=await p.getTextContent();chunks.push(t.items.map(x=>x.str||'').join(' '))}
+  if(doc.numPages>200)throw Error('PDF có trên 200 trang; vui lòng tách thành các tập hoặc chương nhỏ.');
+  const chunks=[];let length=0;for(let i=1;i<=doc.numPages;i++){const p=await doc.getPage(i),t=await p.getTextContent();const paragraph=t.items.map(x=>x.str||'').join(' ');length+=paragraph.length;if(length>180000)throw Error('Văn bản vượt 180.000 ký tự. Vui lòng tách sách thành nhiều tập hoặc chương.');chunks.push(paragraph)}
   return chunks.join('\n');
  }
  throw Error('Định dạng không được hỗ trợ.');
