@@ -2,8 +2,8 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebas
 import { getAuth,signInAnonymously,signInWithEmailAndPassword,signOut,onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 import { firebaseConfig } from './firebase-config.js';
 import { demoAction } from './demo-data.js';
-import { initLanguage } from './languages.js';
-import { readTextbook } from './textbook-reader.js';
+import { initLanguage } from './languages.js?v=ocr1';
+import { readTextbook } from './textbook-reader.js?v=ocr1';
 import { MAX_TEXTBOOK_FILE_MB, MAX_TEXTBOOK_TEXT_LENGTH, TEXTBOOK_TEXT_LIMIT_MESSAGE } from './textbook-limits.js';
 import { openExportDialog,closeExportDialog,runExport } from './exporter.js';
 const isPreview=location.hostname.endsWith('github.io')||location.hostname==='localhost';
@@ -76,7 +76,7 @@ const unitFileLabel='File Unit / bài học · tối đa '+MAX_TEXTBOOK_FILE_MB+
 function library(){
  if(!keepTeacher())return;
  const total=textbookCatalog(S.books).length;
- root.innerHTML='<div class="row between"><div><span class="eyebrow">CONTENT LIBRARY</span><h1>Giáo trình & ngân hàng câu hỏi</h1><p class="muted">Tải bộ sách một lần, đặt tên trước khi lưu. Sau đó chọn lại bộ sách để bổ sung các Unit.</p></div><span class="badge">'+total+' bộ sách · '+S.bank.length+' câu hỏi</span></div><div class="grid"><section class="panel"><h2>Quản lý bộ sách</h2><div class="library-mode" role="group" aria-label="Chọn thao tác với bộ sách"><button type="button" id="new-book-tab" class="secondary active" aria-pressed="true">1. Tải bộ sách mới</button><button type="button" id="existing-book-tab" class="secondary" aria-pressed="false">2. Bộ sách đã tải</button></div><div id="new-book-panel"><p class="hint">Chọn file, xem nội dung trích xuất, sửa tên bộ sách rồi mới nhấn Lưu. Sách mới sẽ xuất hiện trong thư viện bên phải.</p><form id="book-form" class="stack">'+field('Khối',input('grade',4,'number','min="1" max="12" required'))+field(textbookFileLabel,'<input type="file" id="new-book-file" accept=".pdf,.docx,.txt,.md" required><p class="notice">Bản demo lưu văn bản trích xuất, không lưu file gốc. PDF scan chưa hỗ trợ nhận dạng chữ (OCR).</p>')+field('Tên bộ sách – có thể sửa trước khi lưu',input('title','','text','placeholder="Ví dụ: Family and Friends 5" required maxlength="120"'))+field('Nội dung đọc từ file','<textarea name="text" id="new-book-text" rows="7" placeholder="Nội dung trích xuất sẽ xuất hiện ở đây. Kiểm tra lại trước khi lưu." required></textarea>')+'<label class="chip"><input name="rights" type="checkbox" required> Tôi có quyền sử dụng và gửi tài liệu này cho AI khi chọn tính năng AI</label><button class="primary" type="submit">Lưu bộ sách mới</button></form></div><div id="existing-book-panel" class="hidden"><p class="hint">Chọn bộ sách đã tải, không cần nhập lại tên. Các sách được phân theo khối và xếp tên theo thứ tự A–Z.</p><form id="unit-form" class="stack">'+field('Khối',input('grade',4,'number','id="existing-grade" min="1" max="12" required'))+field('Bộ sách đã tải','<select id="existing-book-select" name="group" required>'+catalogOptions(4)+'</select>')+field('Tên Unit / bài học cần thêm',input('title','','text','placeholder="Ví dụ: Unit 2 – My School" required maxlength="150"'))+field(unitFileLabel,'<input id="unit-file" type="file" accept=".pdf,.docx,.txt,.md"><p class="notice">Bạn có thể chọn file Unit hoặc dán văn bản.</p>')+field('Nội dung Unit','<textarea name="text" id="unit-text" rows="7" placeholder="Dán nội dung hoặc chọn file ở trên." required></textarea>')+'<label class="chip"><input name="rights" type="checkbox" required> Tôi có quyền sử dụng nội dung này</label><button class="primary" type="submit">Lưu Unit vào bộ sách đã chọn</button></form></div></section><section class="panel"><h2>Thư viện giáo trình</h2><p class="muted small">Khối tăng dần → tên bộ sách A–Z → Unit theo số thứ tự. Các Unit đã lưu trước đây vẫn được giữ lại.</p><div class="textbook-tree">'+(S.books.length?textbookTree(S.books):'<p class="muted">Chưa có bộ sách. Chọn “Tải bộ sách mới” để bắt đầu.</p>')+'</div></section></div><section class="panel"><div class="row between"><div><h2>Ngân hàng câu hỏi</h2><p class="muted">Tạo câu hỏi thủ công theo một trong 7 khuôn mẫu, hoặc để AI đề xuất từ giáo trình.</p></div><button class="secondary" id="add-manual">+ Thêm câu hỏi</button></div><div class="grid3">'+(S.bank.length?S.bank.slice(0,30).map(q=>'<div class="card"><span class="pill">'+E(T(q.type))+'</span><p>'+E(q.prompt)+'</p></div>').join(''):'<p class="muted">Chưa có câu hỏi thủ công.</p>')+'</div></section>';
+ root.innerHTML='<div class="row between"><div><span class="eyebrow">CONTENT LIBRARY</span><h1>Giáo trình & ngân hàng câu hỏi</h1><p class="muted">Tải bộ sách một lần, đặt tên trước khi lưu. Sau đó chọn lại bộ sách để bổ sung các Unit.</p></div><span class="badge">'+total+' bộ sách · '+S.bank.length+' câu hỏi</span></div><div class="grid"><section class="panel"><h2>Quản lý bộ sách</h2><div class="library-mode" role="group" aria-label="Chọn thao tác với bộ sách"><button type="button" id="new-book-tab" class="secondary active" aria-pressed="true">1. Tải bộ sách mới</button><button type="button" id="existing-book-tab" class="secondary" aria-pressed="false">2. Bộ sách đã tải</button></div><div id="new-book-panel"><p class="hint">Chọn file, xem nội dung trích xuất, sửa tên bộ sách rồi mới nhấn Lưu. Sách mới sẽ xuất hiện trong thư viện bên phải.</p><form id="book-form" class="stack">'+field('Khối',input('grade',4,'number','min="1" max="12" required'))+field(textbookFileLabel,'<input type="file" id="new-book-file" accept=".pdf,.docx,.txt,.md" required><p class="notice">PDF scan được nhận dạng chữ ngay trong trình duyệt. Sách nhiều trang có thể mất vài phút.</p>')+field('Tên bộ sách – có thể sửa trước khi lưu',input('title','','text','placeholder="Ví dụ: Family and Friends 5" required maxlength="120"'))+field('Nội dung đọc từ file','<textarea name="text" id="new-book-text" rows="7" placeholder="Nội dung trích xuất sẽ xuất hiện ở đây. Kiểm tra lại trước khi lưu." required></textarea>')+'<label class="chip"><input name="rights" type="checkbox" required> Tôi có quyền sử dụng và gửi tài liệu này cho AI khi chọn tính năng AI</label><button class="primary" type="submit">Lưu bộ sách mới</button></form></div><div id="existing-book-panel" class="hidden"><p class="hint">Chọn bộ sách đã tải, không cần nhập lại tên. Các sách được phân theo khối và xếp tên theo thứ tự A–Z.</p><form id="unit-form" class="stack">'+field('Khối',input('grade',4,'number','id="existing-grade" min="1" max="12" required'))+field('Bộ sách đã tải','<select id="existing-book-select" name="group" required>'+catalogOptions(4)+'</select>')+field('Tên Unit / bài học cần thêm',input('title','','text','placeholder="Ví dụ: Unit 2 – My School" required maxlength="150"'))+field(unitFileLabel,'<input id="unit-file" type="file" accept=".pdf,.docx,.txt,.md"><p class="notice">Bạn có thể chọn file Unit hoặc dán văn bản.</p>')+field('Nội dung Unit','<textarea name="text" id="unit-text" rows="7" placeholder="Dán nội dung hoặc chọn file ở trên." required></textarea>')+'<label class="chip"><input name="rights" type="checkbox" required> Tôi có quyền sử dụng nội dung này</label><button class="primary" type="submit">Lưu Unit vào bộ sách đã chọn</button></form></div></section><section class="panel"><h2>Thư viện giáo trình</h2><p class="muted small">Khối tăng dần → tên bộ sách A–Z → Unit theo số thứ tự. Các Unit đã lưu trước đây vẫn được giữ lại.</p><div class="textbook-tree">'+(S.books.length?textbookTree(S.books):'<p class="muted">Chưa có bộ sách. Chọn “Tải bộ sách mới” để bắt đầu.</p>')+'</div></section></div><section class="panel"><div class="row between"><div><h2>Ngân hàng câu hỏi</h2><p class="muted">Tạo câu hỏi thủ công theo một trong 7 khuôn mẫu, hoặc để AI đề xuất từ giáo trình.</p></div><button class="secondary" id="add-manual">+ Thêm câu hỏi</button></div><div class="grid3">'+(S.bank.length?S.bank.slice(0,30).map(q=>'<div class="card"><span class="pill">'+E(T(q.type))+'</span><p>'+E(q.prompt)+'</p></div>').join(''):'<p class="muted">Chưa có câu hỏi thủ công.</p>')+'</div></section>';
 }
 function switchLibraryMode(kind){
  const isNew=kind==='new';
@@ -195,11 +195,29 @@ async function loadTextbookFile(fileInput){
  const form=fileInput.form;
  const submit=form.querySelector('[type="submit"]');
  const text=form.elements.text;
+ const status=document.createElement('p');
+ status.className='notice';
+ status.setAttribute('role','status');
+ form.querySelector('.textbook-progress')?.remove();
+ status.classList.add('textbook-progress');
+ form.querySelector('textarea').before(status);
+ const message=document.createElement('span');
+ const pageCount=document.createElement('span');
+ status.append(message,pageCount);
+ message.textContent='Đang đọc tệp giáo trình…';
  text.value='';
  submit.disabled=true;
- show('Đang đọc tệp giáo trình…',true);
+ clear();
  try{
-  const content=await readTextbook(file);
+  const content=await readTextbook(file,({page,total,ocr})=>{
+   if(!fileInput.isConnected||fileInput.files[0]!==file)throw new DOMException('','AbortError');
+   const phase=ocr?'Đang nhận dạng chữ (OCR)':'Đang đọc PDF';
+   if(message.dataset.phase!==phase){
+    message.dataset.phase=phase;
+    message.textContent=phase;
+   }
+   pageCount.textContent=' · '+page+'/'+total;
+  });
   if(!fileInput.isConnected||fileInput.files[0]!==file)return;
   text.value=content;
   const title=form.elements.title;
@@ -210,6 +228,7 @@ async function loadTextbookFile(fileInput){
   show(err.message||String(err));
   fileInput.value='';
  }finally{
+  status.remove();
   if(fileInput.isConnected&&(!fileInput.files.length||fileInput.files[0]===file))submit.disabled=false;
  }
 }
